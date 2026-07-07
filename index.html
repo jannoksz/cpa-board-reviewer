@@ -1,0 +1,1792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CPA Board Reviewer</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<style>
+/* ============================================================
+   CPA Board Reviewer — Design System
+   Direction: "Examiner's Desk" — deep navy + brass seal accent,
+   serif headings (certificate feel), mono for scores/figures.
+   ============================================================ */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+:root{
+    --navy-950:#0A1930;
+    --navy-900:#0F2A4A;
+    --navy-800:#163A63;
+    --navy-700:#1E4B8F;
+    --navy-600:#2B5FAE;
+
+    --brass:#B08D57;
+    --brass-light:#D9C08F;
+    --brass-dark:#8A6D3F;
+
+    --paper:#F6F4EE;
+    --paper-line:#E4E0D3;
+    --card:#FFFFFF;
+
+    --ink:#1B2430;
+    --ink-soft:#5B6472;
+    --ink-faint:#8A93A0;
+
+    --good:#2E7D5B;
+    --good-bg:#E6F2EC;
+    --bad:#B0473E;
+    --bad-bg:#F7E9E7;
+    --warn:#B08D57;
+
+    --radius-lg:20px;
+    --radius-md:14px;
+    --radius-sm:9px;
+    --shadow-card:0 1px 2px rgba(15,42,74,.06), 0 12px 28px rgba(15,42,74,.08);
+    --shadow-hover:0 4px 10px rgba(15,42,74,.10), 0 20px 40px rgba(15,42,74,.14);
+
+    --font-display:'Fraunces', serif;
+    --font-body:'Inter', sans-serif;
+    --font-mono:'IBM Plex Mono', monospace;
+}
+
+body.dark{
+    --navy-950:#050D1A;
+    --paper:#0B1524;
+    --paper-line:#1C2A3E;
+    --card:#101E33;
+    --ink:#E7EAEF;
+    --ink-soft:#9AA7B8;
+    --ink-faint:#67748A;
+    --good-bg:#123425;
+    --bad-bg:#3A1815;
+}
+
+body{
+    font-family:var(--font-body);
+    background:var(--paper);
+    color:var(--ink);
+    transition:background .3s, color .3s;
+    min-height:100vh;
+    background-image:linear-gradient(var(--paper-line) 1px, transparent 1px);
+    background-size: 100% 42px;
+    background-attachment: local;
+}
+
+.container{ max-width:1180px; margin:0 auto; padding:0 32px; }
+a{ color:inherit; }
+
+/* ---------------- Top Bar ---------------- */
+.topbar{
+    position:sticky; top:0; z-index:999;
+    background:var(--navy-900); color:#fff;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 32px; box-shadow:0 6px 20px rgba(0,0,0,.18);
+}
+.topbar .brand{ display:flex; align-items:center; gap:12px; font-family:var(--font-display); font-size:22px; font-weight:600; letter-spacing:.2px; cursor:pointer; }
+.topbar .brand .seal{ width:34px; height:34px; border-radius:50%; border:1.5px solid var(--brass-light); display:flex; align-items:center; justify-content:center; color:var(--brass-light); font-size:15px; background:rgba(176,141,87,.12); }
+.topbar nav{ display:flex; gap:30px; align-items:center; }
+.topbar nav a{ text-decoration:none; color:#CBD6E6; font-weight:500; font-size:14.5px; letter-spacing:.2px; transition:color .2s; cursor:pointer; }
+.topbar nav a:hover, .topbar nav a.active{ color:#fff; }
+.topbar-actions{ display:flex; align-items:center; gap:14px; }
+
+.icon-btn{ width:42px; height:42px; border-radius:50%; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.06); color:#fff; cursor:pointer; font-size:15px; display:flex; align-items:center; justify-content:center; transition:.2s; }
+.icon-btn:hover{ background:var(--brass); border-color:var(--brass); color:var(--navy-950); }
+
+.user-chip{ display:flex; align-items:center; gap:10px; padding:8px 14px 8px 8px; border-radius:30px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14); cursor:pointer; transition:.2s; }
+.user-chip:hover{ background:rgba(255,255,255,.12); }
+.user-chip .avatar{ width:26px; height:26px; border-radius:50%; background:var(--brass); color:var(--navy-950); display:flex; align-items:center; justify-content:center; font-family:var(--font-mono); font-weight:600; font-size:12px; flex-shrink:0; }
+.user-chip span{ font-size:13.5px; font-weight:600; color:#EAF0F8; }
+
+/* ---------------- Buttons ---------------- */
+.btn{ display:inline-flex; align-items:center; gap:10px; font-family:var(--font-body); font-weight:600; font-size:15px; padding:14px 28px; border-radius:12px; border:none; cursor:pointer; transition:transform .18s ease, box-shadow .18s ease, background .18s ease; }
+.btn-primary{ background:var(--navy-900); color:#fff; box-shadow:var(--shadow-card); }
+.btn-primary:hover{ background:var(--navy-800); transform:translateY(-2px); box-shadow:var(--shadow-hover); }
+.btn-brass{ background:var(--brass); color:var(--navy-950); box-shadow:var(--shadow-card); }
+.btn-brass:hover{ background:var(--brass-dark); color:#fff; transform:translateY(-2px); }
+.btn-outline{ background:transparent; color:var(--navy-900); border:1.5px solid var(--navy-900); }
+.btn-outline:hover{ background:var(--navy-900); color:#fff; }
+body.dark .btn-outline{ color:#E7EAEF; border-color:#3A4A63; }
+.btn-danger{ background:var(--bad-bg); color:var(--bad); border:1.5px solid rgba(176,71,62,.3); }
+.btn-danger:hover{ background:var(--bad); color:#fff; }
+.btn-sm{ padding:9px 16px; font-size:13.5px; border-radius:9px; }
+.btn:disabled{ opacity:.45; cursor:not-allowed; transform:none !important; }
+
+/* ---------------- Hero ---------------- */
+.hero{ padding:86px 0 64px; }
+.hero .eyebrow{ display:inline-flex; align-items:center; gap:8px; font-family:var(--font-mono); font-size:12.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--brass-dark); background:rgba(176,141,87,.12); border:1px solid rgba(176,141,87,.35); padding:8px 16px; border-radius:30px; margin-bottom:28px; }
+.hero h1{ font-family:var(--font-display); font-weight:600; font-size:58px; line-height:1.12; letter-spacing:-.5px; max-width:780px; }
+.hero h1 em{ font-style:italic; color:var(--navy-700); }
+body.dark .hero h1 em{ color:var(--brass-light); }
+.hero p{ margin-top:22px; font-size:18px; line-height:1.75; color:var(--ink-soft); max-width:600px; }
+.hero-actions{ display:flex; gap:16px; margin-top:40px; flex-wrap:wrap; }
+
+/* ---------------- Section headers ---------------- */
+.section-head{ display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:34px; gap:20px; flex-wrap:wrap; }
+.section-head h2{ font-family:var(--font-display); font-size:32px; font-weight:600; }
+.section-head p{ color:var(--ink-soft); margin-top:6px; font-size:15px; }
+.section{ padding:64px 0; }
+
+/* ---------------- Subject grid / cards ---------------- */
+.subject-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:24px; }
+.subject-card{ background:var(--card); border-radius:var(--radius-lg); padding:30px 30px 26px; cursor:pointer; text-decoration:none; color:var(--ink); box-shadow:var(--shadow-card); border:1px solid rgba(15,42,74,.06); transition:transform .25s ease, box-shadow .25s ease, border-color .25s ease; display:flex; flex-direction:column; gap:16px; position:relative; overflow:hidden; }
+body.dark .subject-card{ border-color:rgba(255,255,255,.06); }
+.subject-card:hover{ transform:translateY(-6px); box-shadow:var(--shadow-hover); border-color:var(--brass); }
+.subject-card .code-row{ display:flex; align-items:center; justify-content:space-between; }
+.subject-card .code{ font-family:var(--font-mono); font-weight:600; font-size:13px; letter-spacing:.1em; color:var(--navy-700); background:rgba(30,75,143,.08); padding:6px 12px; border-radius:20px; }
+body.dark .subject-card .code{ color:var(--brass-light); background:rgba(176,141,87,.12); }
+.subject-card .card-icon{ font-size:26px; color:var(--brass-dark); }
+.subject-card h3{ font-family:var(--font-display); font-size:23px; font-weight:600; }
+.subject-card .desc{ color:var(--ink-soft); font-size:14.5px; line-height:1.6; min-height:44px; }
+.subject-card .levels-row{ display:flex; gap:8px; margin-top:auto; flex-wrap:wrap; }
+.level-chip{ font-family:var(--font-mono); font-size:11.5px; font-weight:600; padding:6px 10px; border-radius:7px; letter-spacing:.02em; background:var(--paper-line); color:var(--ink-soft); }
+.level-chip.done{ background:var(--good-bg); color:var(--good); }
+
+/* ---------------- Stats ---------------- */
+.stats-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:22px; }
+.stat-card{ background:var(--card); border-radius:var(--radius-lg); padding:30px; box-shadow:var(--shadow-card); text-align:left; border-left:4px solid var(--brass); }
+.stat-card .label{ font-size:13px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.08em; font-weight:600; }
+.stat-card .value{ font-family:var(--font-mono); font-size:38px; font-weight:600; margin-top:10px; color:var(--navy-900); }
+body.dark .stat-card .value{ color:#fff; }
+
+/* ---------------- Detailed progress ---------------- */
+.progress-subhead{ font-family:var(--font-display); font-size:22px; font-weight:600; margin-bottom:4px; }
+.progress-subdesc{ color:var(--ink-soft); font-size:14px; margin-bottom:20px; }
+.progress-trend{ background:var(--card); border-radius:var(--radius-lg); padding:30px; box-shadow:var(--shadow-card); margin-bottom:28px; }
+.trend-empty{ text-align:center; padding:36px 20px; color:var(--ink-soft); font-size:14.5px; }
+
+.weak-areas-card{ background:var(--bad-bg); border:1px solid rgba(176,71,62,.25); border-radius:var(--radius-lg); padding:24px 26px; margin-bottom:28px; }
+.weak-areas-card h3{ font-family:var(--font-display); font-size:18px; color:var(--bad); margin-bottom:6px; display:flex; align-items:center; gap:8px; }
+.weak-areas-card p{ font-size:13.5px; color:var(--ink-soft); margin-bottom:14px; }
+.weak-chip-list{ display:flex; flex-wrap:wrap; gap:8px; }
+.weak-chip{ background:var(--card); border:1px solid rgba(176,71,62,.3); border-radius:20px; padding:8px 14px; font-size:12.5px; font-weight:600; color:var(--bad); font-family:var(--font-mono); cursor:pointer; transition:.15s; }
+.weak-chip:hover{ background:var(--bad); color:#fff; }
+
+.subject-breakdown-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:18px; margin-bottom:28px; }
+.sb-card{ background:var(--card); border-radius:16px; padding:22px 24px; box-shadow:var(--shadow-card); cursor:pointer; transition:transform .2s ease, box-shadow .2s ease; border:1px solid rgba(15,42,74,.06); }
+body.dark .sb-card{ border-color:rgba(255,255,255,.06); }
+.sb-card:hover{ transform:translateY(-4px); box-shadow:var(--shadow-hover); }
+.sb-top{ display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+.sb-name{ font-family:var(--font-display); font-size:17px; font-weight:600; }
+.sb-avg{ font-family:var(--font-mono); font-weight:600; font-size:13px; padding:5px 11px; border-radius:8px; }
+.sb-avg.good{ background:var(--good-bg); color:var(--good); }
+.sb-avg.warn{ background:rgba(176,141,87,.15); color:var(--brass-dark); }
+.sb-avg.bad{ background:var(--bad-bg); color:var(--bad); }
+.sb-avg.none{ background:var(--paper-line); color:var(--ink-faint); }
+.sb-levels{ display:flex; flex-direction:column; gap:10px; }
+.sb-level-row{ display:flex; align-items:center; gap:10px; font-size:12.5px; }
+.sb-level-label{ width:88px; color:var(--ink-soft); font-weight:600; flex-shrink:0; }
+.sb-level-bar{ flex:1; height:8px; border-radius:6px; background:var(--paper-line); overflow:hidden; }
+.sb-level-fill{ height:100%; border-radius:6px; transition:width .3s ease; }
+.sb-level-score{ font-family:var(--font-mono); font-size:11.5px; color:var(--ink-soft); width:64px; text-align:right; flex-shrink:0; }
+
+.recent-activity-list{ display:flex; flex-direction:column; gap:10px; margin-bottom:8px; }
+.ra-row{ display:flex; align-items:center; justify-content:space-between; background:var(--card); border-radius:12px; padding:14px 18px; box-shadow:var(--shadow-card); gap:14px; flex-wrap:wrap; }
+.ra-left{ display:flex; align-items:center; gap:14px; }
+.ra-badge{ font-family:var(--font-mono); font-weight:600; font-size:14.5px; padding:8px 12px; border-radius:10px; min-width:52px; text-align:center; }
+.ra-badge.good{ background:var(--good-bg); color:var(--good); }
+.ra-badge.warn{ background:rgba(176,141,87,.15); color:var(--brass-dark); }
+.ra-badge.bad{ background:var(--bad-bg); color:var(--bad); }
+.ra-title{ font-weight:600; font-size:14px; }
+.ra-meta{ font-size:12px; color:var(--ink-soft); margin-top:2px; }
+.ra-date{ font-family:var(--font-mono); font-size:11.5px; color:var(--ink-faint); white-space:nowrap; }
+
+/* ---------------- Exam Permit ---------------- */
+.permit-header{ padding:64px 0 20px; }
+.permit-header .back-link{ display:inline-flex; align-items:center; gap:8px; color:var(--ink-soft); text-decoration:none; font-size:14px; font-weight:600; margin-bottom:24px; cursor:pointer; }
+.permit-header .back-link:hover{ color:var(--navy-900); }
+.permit-header h1{ font-family:var(--font-display); font-size:42px; font-weight:600; }
+.permit-header p{ color:var(--ink-soft); margin-top:10px; font-size:16px; max-width:600px; }
+.permit-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:28px; padding-bottom:80px; }
+.permit{ position:relative; background:var(--card); border-radius:var(--radius-md); box-shadow:var(--shadow-card); padding:0; overflow:hidden; border:1px solid rgba(15,42,74,.08); transition:transform .25s ease, box-shadow .25s ease; }
+body.dark .permit{ border-color:rgba(255,255,255,.07); }
+.permit:hover{ transform:translateY(-5px); box-shadow:var(--shadow-hover); }
+.permit-top{ background:var(--navy-900); color:#fff; padding:22px 26px; display:flex; justify-content:space-between; align-items:flex-start; }
+.permit-top .tier{ font-family:var(--font-mono); font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--brass-light); }
+.permit-top h3{ font-family:var(--font-display); font-size:24px; font-weight:600; margin-top:6px; }
+.permit-top .qcount{ font-family:var(--font-mono); font-size:13px; color:#CBD6E6; margin-top:8px; }
+.permit-body{ padding:22px 26px 26px; border-top:1px dashed var(--paper-line); display:flex; flex-direction:column; gap:16px; }
+.permit-stub{ background:repeating-linear-gradient(90deg, var(--paper-line) 0 8px, transparent 8px 16px); height:1px; margin:2px 0; }
+.permit-stamp{ font-family:var(--font-mono); font-size:11px; font-weight:600; letter-spacing:.08em; color:var(--brass-dark); border:1.5px solid var(--brass); border-radius:6px; padding:5px 10px; transform:rotate(-4deg); display:inline-block; text-transform:uppercase; }
+.permit-locked{ color:var(--ink-faint); font-size:13.5px; font-style:italic; }
+
+/* ---------------- Empty state ---------------- */
+.empty-state{ text-align:center; padding:70px 30px; background:var(--card); border-radius:var(--radius-lg); border:1.5px dashed var(--paper-line); }
+.empty-state i{ font-size:38px; color:var(--brass); margin-bottom:18px; }
+.empty-state h3{ font-family:var(--font-display); font-size:22px; margin-bottom:8px; }
+.empty-state p{ color:var(--ink-soft); font-size:14.5px; max-width:420px; margin:0 auto 20px; }
+
+/* ---------------- Auth screens ---------------- */
+.auth-shell{ min-height:calc(100vh - 74px); display:flex; align-items:center; justify-content:center; padding:40px 20px; }
+.auth-card{ background:var(--card); border-radius:var(--radius-lg); box-shadow:var(--shadow-card); padding:44px 40px; max-width:420px; width:100%; text-align:center; }
+.auth-card .seal-lg{ width:56px; height:56px; border-radius:50%; border:1.5px solid var(--brass); display:flex; align-items:center; justify-content:center; color:var(--brass-dark); font-size:22px; background:rgba(176,141,87,.1); margin:0 auto 20px; }
+.auth-card h2{ font-family:var(--font-display); font-size:26px; font-weight:600; margin-bottom:8px; }
+.auth-card p{ color:var(--ink-soft); font-size:14.5px; line-height:1.6; margin-bottom:26px; }
+.auth-card input{ width:100%; padding:14px 16px; border-radius:10px; border:1.5px solid var(--paper-line); font-family:var(--font-body); font-size:15px; background:var(--paper); color:var(--ink); text-align:center; margin-bottom:16px; }
+.auth-card input:focus{ outline:2px solid var(--navy-700); outline-offset:2px; }
+.auth-card .btn{ width:100%; justify-content:center; }
+.auth-error{ color:var(--bad); font-size:13.5px; margin:-8px 0 16px; min-height:0; }
+.auth-switch{ margin-top:18px; font-size:13px; color:var(--ink-faint); }
+.auth-switch a{ color:var(--navy-700); font-weight:600; cursor:pointer; text-decoration:underline; }
+body.dark .auth-switch a{ color:var(--brass-light); }
+
+/* ---------------- Exam interface ---------------- */
+.exam-shell{ max-width:820px; margin:0 auto; padding:48px 24px 100px; }
+.exam-progress-bar{ height:6px; background:var(--paper-line); border-radius:10px; overflow:hidden; margin-bottom:10px; }
+.exam-progress-fill{ height:100%; background:var(--brass); transition:width .3s ease; }
+.exam-meta{ display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:13px; color:var(--ink-soft); margin-bottom:34px; }
+.exam-timer{ font-weight:600; color:var(--navy-900); }
+body.dark .exam-timer{ color:var(--brass-light); }
+.question-card{ background:var(--card); border-radius:var(--radius-lg); padding:38px 36px; box-shadow:var(--shadow-card); }
+.q-tag{ font-family:var(--font-mono); font-size:12px; color:var(--brass-dark); text-transform:uppercase; letter-spacing:.1em; margin-bottom:14px; display:block; }
+.q-text{ font-size:19px; line-height:1.65; font-weight:500; margin-bottom:28px; }
+.choice-list{ display:flex; flex-direction:column; gap:12px; }
+.choice{ display:flex; align-items:center; gap:14px; padding:16px 18px; border-radius:12px; border:1.5px solid var(--paper-line); cursor:pointer; transition:.18s; font-size:15.5px; }
+.choice:hover{ border-color:var(--navy-600); }
+.choice.selected{ border-color:var(--navy-900); background:rgba(30,75,143,.06); font-weight:600; }
+.choice .letter{ width:28px; height:28px; border-radius:8px; background:var(--paper-line); display:flex; align-items:center; justify-content:center; font-family:var(--font-mono); font-weight:600; font-size:13px; flex-shrink:0; }
+.choice.selected .letter{ background:var(--navy-900); color:#fff; }
+.problem-answer-box textarea, .problem-answer-box input{ width:100%; padding:16px; border-radius:12px; border:1.5px solid var(--paper-line); font-family:var(--font-body); font-size:15px; resize:vertical; background:transparent; color:var(--ink); }
+.problem-answer-box textarea:focus, .problem-answer-box input:focus, .choice:focus-visible{ outline:2px solid var(--navy-700); outline-offset:2px; }
+.exam-nav{ display:flex; justify-content:space-between; margin-top:30px; }
+
+/* ---------------- Results ---------------- */
+.result-shell{ max-width:640px; margin:60px auto; text-align:center; }
+.result-ring{ width:180px; height:180px; margin:0 auto 30px; position:relative; }
+.result-ring .pct{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; }
+.result-ring .pct .num{ font-family:var(--font-mono); font-size:40px; font-weight:600; }
+.result-ring .pct .cap{ font-size:12px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.08em; }
+.result-verdict{ font-family:var(--font-display); font-size:28px; font-weight:600; margin-bottom:8px; }
+.result-detail{ color:var(--ink-soft); margin-bottom:36px; }
+.review-list{ text-align:left; display:flex; flex-direction:column; gap:14px; margin-top:20px; }
+.review-item{ background:var(--card); border-radius:14px; padding:20px 22px; border-left:4px solid var(--paper-line); }
+.review-item.correct{ border-left-color:var(--good); }
+.review-item.incorrect{ border-left-color:var(--bad); }
+.review-item .rq{ font-weight:600; margin-bottom:8px; }
+.review-item .ra{ font-size:14px; color:var(--ink-soft); }
+.review-item .ra b.correct-text{ color:var(--good); }
+.review-item .ra b.wrong-text{ color:var(--bad); }
+
+/* ---------------- Admin ---------------- */
+.admin-shell{ display:grid; grid-template-columns:280px 1fr; gap:0; min-height:calc(100vh - 74px); }
+.admin-sidebar{ background:var(--card); border-right:1px solid var(--paper-line); padding:30px 20px; }
+.admin-sidebar h4{ font-size:12px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-faint); margin:18px 10px 10px; }
+.admin-subject-item{ display:flex; align-items:center; gap:10px; padding:12px 14px; border-radius:10px; cursor:pointer; margin-bottom:4px; font-weight:500; font-size:14.5px; color:var(--ink-soft); }
+.admin-subject-item:hover{ background:var(--paper); }
+.admin-subject-item.active{ background:var(--navy-900); color:#fff; }
+.admin-main{ padding:34px 40px; }
+.level-tabs{ display:flex; gap:8px; margin-bottom:28px; flex-wrap:wrap; }
+.level-tab{ padding:10px 20px; border-radius:10px; border:1.5px solid var(--paper-line); background:transparent; cursor:pointer; font-weight:600; font-size:13.5px; color:var(--ink-soft); font-family:var(--font-body); }
+.level-tab.active{ background:var(--navy-900); border-color:var(--navy-900); color:#fff; }
+.level-tab .count-badge{ font-family:var(--font-mono); margin-left:6px; opacity:.75; }
+.qb-toolbar{ display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; gap:16px; flex-wrap:wrap; }
+.qb-search{ flex:1; min-width:200px; padding:11px 16px; border-radius:10px; border:1.5px solid var(--paper-line); background:var(--card); color:var(--ink); font-family:var(--font-body); }
+.question-row{ background:var(--card); border-radius:14px; padding:20px 22px; box-shadow:var(--shadow-card); margin-bottom:12px; }
+.question-row .qr-top{ display:flex; justify-content:space-between; gap:16px; align-items:flex-start; }
+.question-row .qr-text{ font-weight:500; line-height:1.55; }
+.question-row .qr-meta{ font-family:var(--font-mono); font-size:11.5px; color:var(--ink-faint); margin-top:8px; text-transform:uppercase; letter-spacing:.05em; }
+.qr-actions{ display:flex; gap:8px; flex-shrink:0; }
+.qr-icon-btn{ width:34px; height:34px; border-radius:8px; border:1px solid var(--paper-line); background:transparent; cursor:pointer; color:var(--ink-soft); }
+.qr-icon-btn:hover{ background:var(--paper); }
+
+/* Modal */
+.modal-overlay{ position:fixed; inset:0; background:rgba(10,25,48,.55); backdrop-filter:blur(3px); z-index:1000; display:flex; align-items:flex-start; justify-content:center; padding:50px 20px; overflow-y:auto; }
+.modal{ background:var(--card); border-radius:var(--radius-lg); max-width:640px; width:100%; padding:34px 36px; box-shadow:var(--shadow-hover); }
+.modal.modal-wide{ max-width:760px; }
+.modal h3{ font-family:var(--font-display); font-size:24px; margin-bottom:24px; }
+.form-group{ margin-bottom:18px; }
+.form-group label{ display:block; font-size:13px; font-weight:600; color:var(--ink-soft); margin-bottom:8px; text-transform:uppercase; letter-spacing:.04em; }
+.form-group input, .form-group textarea, .form-group select{ width:100%; padding:13px 15px; border-radius:10px; border:1.5px solid var(--paper-line); font-family:var(--font-body); font-size:14.5px; background:var(--paper); color:var(--ink); }
+.form-group textarea{ resize:vertical; min-height:80px; }
+.form-row{ display:flex; gap:14px; }
+.form-row .form-group{ flex:1; }
+.type-toggle{ display:flex; gap:10px; margin-bottom:20px; }
+.type-toggle button{ flex:1; padding:12px; border-radius:10px; border:1.5px solid var(--paper-line); background:transparent; cursor:pointer; font-weight:600; font-family:var(--font-body); color:var(--ink-soft); }
+.type-toggle button.active{ border-color:var(--navy-900); background:var(--navy-900); color:#fff; }
+.choice-input-row{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.choice-input-row input[type=radio]{ width:20px; height:20px; accent-color:var(--good); flex-shrink:0; }
+.modal-actions{ display:flex; justify-content:flex-end; gap:12px; margin-top:26px; }
+.bulk-drop{ border:1.5px dashed var(--paper-line); border-radius:14px; padding:28px; text-align:center; cursor:pointer; transition:.18s; background:var(--paper); }
+.bulk-drop:hover, .bulk-drop.drag-over{ border-color:var(--navy-700); background:rgba(30,75,143,.05); }
+.bulk-drop i{ font-size:26px; color:var(--brass-dark); margin-bottom:10px; display:block; }
+.bulk-drop .fname{ font-family:var(--font-mono); font-size:13px; color:var(--navy-700); margin-top:8px; }
+body.dark .bulk-drop .fname{ color:var(--brass-light); }
+.bulk-format-toggle{ display:flex; gap:8px; margin-bottom:16px; }
+.bulk-format-toggle button{ padding:8px 16px; border-radius:8px; border:1.5px solid var(--paper-line); background:transparent; cursor:pointer; font-weight:600; font-size:13px; font-family:var(--font-body); color:var(--ink-soft); }
+.bulk-format-toggle button.active{ border-color:var(--navy-900); background:var(--navy-900); color:#fff; }
+.bulk-report{ margin-top:18px; padding:16px 18px; border-radius:12px; background:var(--good-bg); color:var(--good); font-size:14px; }
+.bulk-report.has-errors{ background:var(--bad-bg); color:var(--bad); }
+.bulk-report ul{ margin:10px 0 0 20px; font-family:var(--font-mono); font-size:12.5px; }
+.bulk-report ul li{ margin-bottom:4px; }
+.bulk-help{ font-size:12.5px; color:var(--ink-soft); line-height:1.6; background:var(--paper); border-radius:10px; padding:14px 16px; margin-bottom:16px; }
+.bulk-help code{ font-family:var(--font-mono); background:var(--paper-line); padding:1px 5px; border-radius:4px; }
+.bulk-help a{ color:var(--navy-700); font-weight:600; cursor:pointer; text-decoration:underline; }
+body.dark .bulk-help a{ color:var(--brass-light); }
+
+.danger-zone{ margin-top:8px; padding:14px 16px; border-radius:12px; border:1.5px solid rgba(176,71,62,.3); background:var(--bad-bg); }
+.danger-zone p{ font-size:12px; color:var(--ink-soft); line-height:1.55; margin-bottom:10px; }
+
+footer{ text-align:center; padding:40px; color:var(--ink-faint); font-size:13.5px; }
+
+@media(max-width:900px){
+    .topbar nav{ display:none; }
+    .hero h1{ font-size:40px; }
+    .admin-shell{ grid-template-columns:1fr; }
+    .admin-sidebar{ border-right:none; border-bottom:1px solid var(--paper-line); }
+}
+@media(max-width:600px){
+    .container{ padding:0 20px; }
+    .hero{ padding:50px 0 40px; }
+    .hero h1{ font-size:32px; }
+    .btn{ width:100%; justify-content:center; }
+    .hero-actions{ flex-direction:column; }
+    .question-card{ padding:26px 22px; }
+    .user-chip span{ display:none; }
+    .form-row{ flex-direction:column; gap:0; }
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+    <div class="brand" onclick="location.hash='#/'"><span class="seal"><i class="fa-solid fa-scale-balanced"></i></span> CPA Reviewer</div>
+    <nav>
+        <a data-route="/" onclick="location.hash='#/'">Dashboard</a>
+        <a data-route="/admin" onclick="location.hash='#/admin'">Question Bank</a>
+    </nav>
+    <div class="topbar-actions">
+        <div class="user-chip" id="userChip" style="display:none;" title="Switch reviewer"></div>
+        <button id="darkModeBtn" class="icon-btn"><i class="fa-solid fa-moon"></i></button>
+    </div>
+</div>
+
+<div id="app"></div>
+
+<footer>© 2026 CPA Board Reviewer · Data stored locally on this device</footer>
+
+<script>
+/* ============================================================
+   CPA Board Reviewer — Data Layer ("Backend")
+   Everything lives in localStorage. This file is the single
+   source of truth for reading/writing questions & results, so
+   every page (admin, subject, exam, dashboard) talks to the
+   SAME api instead of touching localStorage directly.
+   ============================================================ */
+
+const CPA = (() => {
+
+    const KEYS = {
+        QUESTIONS: 'cpa_v1_questions',
+        RESULTS:   'cpa_v1_results',
+        SETTINGS:  'cpa_v1_settings'
+    };
+
+    // ---- Subject catalogue -----------------------------------------
+    // counts = target number of questions an exam pulls for that level.
+    const SUBJECTS = [
+        { id:'FAR',       name:'FAR',       full:'Financial Accounting & Reporting',       icon:'fa-calculator',              counts:{easy:30, intermediate:20, hard:10, mastery:15} },
+        { id:'AFAR',      name:'AFAR',      full:'Advanced Financial Accounting & Reporting', icon:'fa-chart-line',           counts:{easy:30, intermediate:20, hard:10, mastery:15} },
+        { id:'MS',        name:'MS',        full:'Management Services',                    icon:'fa-briefcase',               counts:{easy:30, intermediate:20, hard:10, mastery:15} },
+        { id:'AUDITING',  name:'Auditing',  full:'Auditing Theory & Problems',              icon:'fa-magnifying-glass-chart',  counts:{easy:30, intermediate:20, hard:10, mastery:15} },
+        { id:'TAXATION',  name:'Taxation',  full:'Tax Concepts & Computations',             icon:'fa-receipt',                 counts:{easy:30, intermediate:20, hard:10, mastery:15}, featured:true },
+        { id:'RFBT',      name:'RFBT',      full:'Regulatory Framework & Business Law',     icon:'fa-scale-balanced',          counts:{easy:30, intermediate:20, hard:10, mastery:15} }
+    ];
+
+    const LEVELS = [
+        { id:'easy',         label:'Easy',         desc:'Foundational recall & concepts' },
+        { id:'intermediate', label:'Intermediate', desc:'Applied, multi-step questions' },
+        { id:'hard',         label:'Hard',         desc:'Problem solving & computations' },
+        { id:'mastery',      label:'Mastery',      desc:'Comprehensive, board-condition mixed review' }
+    ];
+
+    // ---- low-level storage helpers ----------------------------------
+    function _read(key, fallback){
+        try{
+            const raw = localStorage.getItem(key);
+            return raw ? JSON.parse(raw) : fallback;
+        }catch(e){
+            console.error('CPA storage read failed for', key, e);
+            return fallback;
+        }
+    }
+    function _write(key, value){
+        try{
+            localStorage.setItem(key, JSON.stringify(value));
+            return true;
+        }catch(e){
+            console.error('CPA storage write failed for', key, e);
+            return false;
+        }
+    }
+    function _uid(){
+        return 'q_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);
+    }
+
+    // ---- Questions ---------------------------------------------------
+    function getAllQuestions(){
+        return _read(KEYS.QUESTIONS, []);
+    }
+    function getQuestions(subject, level){
+        return getAllQuestions().filter(q => q.subject === subject && (!level || q.level === level));
+    }
+    function getQuestion(id){
+        return getAllQuestions().find(q => q.id === id) || null;
+    }
+    function addQuestion(q){
+        const all = getAllQuestions();
+        const now = new Date().toISOString();
+        const record = Object.assign({
+            id:_uid(),
+            type:'mcq',
+            choices:[],
+            correctIndex:0,
+            answer:'',
+            solution:'',
+            explanation:'',
+            createdAt:now,
+            updatedAt:now
+        }, q);
+        all.push(record);
+        _write(KEYS.QUESTIONS, all);
+        return record;
+    }
+    function updateQuestion(id, patch){
+        const all = getAllQuestions();
+        const idx = all.findIndex(q => q.id === id);
+        if(idx === -1) return null;
+        all[idx] = Object.assign({}, all[idx], patch, { updatedAt:new Date().toISOString() });
+        _write(KEYS.QUESTIONS, all);
+        return all[idx];
+    }
+    function deleteQuestion(id){
+        const all = getAllQuestions().filter(q => q.id !== id);
+        _write(KEYS.QUESTIONS, all);
+    }
+    function getQuestionCounts(subject){
+        const qs = getAllQuestions().filter(q => q.subject === subject);
+        const counts = {};
+        LEVELS.forEach(l => { counts[l.id] = qs.filter(q => q.level === l.id).length; });
+        return counts;
+    }
+
+    // ---- Bulk import ---------------------------------------------------
+    // Accepts an array of "loose" row objects (already parsed from CSV or
+    // JSON) and turns them into real question records in one shot, so the
+    // admin never has to use the one-by-one modal for a big batch.
+    // Each row may provide: type, question, choiceA/choiceB/choiceC/choiceD
+    // (or a `choices` array), correct (letter A-D, 1-based or 0-based number),
+    // answer, solution, explanation, subject, level.
+    // `defaults.subject` / `defaults.level` are used for any row that omits them.
+    function bulkAddQuestions(rows, defaults){
+        defaults = defaults || {};
+        const added = [];
+        const errors = [];
+
+        rows.forEach((raw, i) => {
+            const rowNum = i + 2; // +2 assumes a header row at line 1 (CSV-friendly numbering)
+            try{
+                const record = _normalizeBulkRow(raw, defaults);
+                added.push(addQuestion(record));
+            }catch(e){
+                errors.push({ row: rowNum, message: e.message, raw });
+            }
+        });
+
+        return { added, errors };
+    }
+
+    function _normalizeBulkRow(raw, defaults){
+        const get = (obj, keys) => {
+            for(const k of keys){
+                if(obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== '') return String(obj[k]).trim();
+            }
+            return '';
+        };
+
+        const subject = (get(raw, ['subject', 'Subject', 'SUBJECT']) || defaults.subject || '').toUpperCase();
+        const level = (get(raw, ['level', 'Level', 'LEVEL', 'difficulty', 'Difficulty']) || defaults.level || '').toLowerCase();
+        const type = (get(raw, ['type', 'Type', 'TYPE']) || defaults.type || 'mcq').toLowerCase();
+        const question = get(raw, ['question', 'Question', 'QUESTION', 'q']);
+        const explanation = get(raw, ['explanation', 'Explanation']);
+
+        if(!SUBJECTS.some(s => s.id === subject)){
+            throw new Error(`Unknown subject "${subject || '(blank)'}". Use one of: ${SUBJECTS.map(s=>s.id).join(', ')}.`);
+        }
+        if(!LEVELS.some(l => l.id === level)){
+            throw new Error(`Unknown level "${level || '(blank)'}". Use one of: ${LEVELS.map(l=>l.id).join(', ')}.`);
+        }
+        if(!question){
+            throw new Error('Missing question text.');
+        }
+        if(type !== 'mcq' && type !== 'problem'){
+            throw new Error(`Unknown type "${type}". Use "mcq" or "problem".`);
+        }
+
+        if(type === 'mcq'){
+            let choices = [];
+            if(Array.isArray(raw.choices) && raw.choices.length){
+                choices = raw.choices.map(c => String(c).trim());
+            } else {
+                choices = [
+                    get(raw, ['choiceA', 'choice_a', 'A', 'optionA', 'option1', 'choice1']),
+                    get(raw, ['choiceB', 'choice_b', 'B', 'optionB', 'option2', 'choice2']),
+                    get(raw, ['choiceC', 'choice_c', 'C', 'optionC', 'option3', 'choice3']),
+                    get(raw, ['choiceD', 'choice_d', 'D', 'optionD', 'option4', 'choice4'])
+                ];
+            }
+            choices = choices.filter(c => c !== '');
+            if(choices.length < 2){
+                throw new Error('MCQ needs at least 2 non-empty choices.');
+            }
+
+            const correctRaw = get(raw, ['correct', 'Correct', 'correctIndex', 'answer', 'Answer']);
+            if(correctRaw === ''){
+                throw new Error('Missing correct answer (letter A-D or choice number).');
+            }
+            let correctIndex;
+            if(/^[A-Za-z]$/.test(correctRaw)){
+                correctIndex = correctRaw.toUpperCase().charCodeAt(0) - 65;
+            } else if(/^\d+$/.test(correctRaw)){
+                const n = parseInt(correctRaw, 10);
+                // Accept both 1-based (spreadsheet-friendly) and 0-based input.
+                correctIndex = (n >= 1 && n <= choices.length) ? n - 1 : n;
+            } else {
+                // Correct answer given as the literal choice text.
+                correctIndex = choices.findIndex(c => c.toLowerCase() === correctRaw.toLowerCase());
+            }
+            if(correctIndex < 0 || correctIndex >= choices.length){
+                throw new Error(`Correct answer "${correctRaw}" doesn't match any of the ${choices.length} choices.`);
+            }
+
+            return { subject, level, type:'mcq', question, choices, correctIndex, explanation };
+        } else {
+            const answer = get(raw, ['answer', 'Answer', 'correct', 'Correct']);
+            const solution = get(raw, ['solution', 'Solution']);
+            if(!answer){
+                throw new Error('Missing correct final answer for problem-solving question.');
+            }
+            return { subject, level, type:'problem', question, answer, solution, explanation };
+        }
+    }
+
+    // Minimal CSV parser — handles quoted fields, embedded commas, and
+    // escaped quotes (""), which is all typical spreadsheet exports need.
+    function parseCSV(text){
+        const rows = [];
+        let row = [], field = '', inQuotes = false;
+        text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        for(let i = 0; i < text.length; i++){
+            const c = text[i], next = text[i+1];
+            if(inQuotes){
+                if(c === '"' && next === '"'){ field += '"'; i++; }
+                else if(c === '"'){ inQuotes = false; }
+                else field += c;
+            } else {
+                if(c === '"') inQuotes = true;
+                else if(c === ','){ row.push(field); field = ''; }
+                else if(c === '\n'){ row.push(field); rows.push(row); row = []; field = ''; }
+                else field += c;
+            }
+        }
+        row.push(field);
+        rows.push(row);
+        while(rows.length && rows[rows.length-1].every(f => f.trim() === '')) rows.pop();
+
+        if(!rows.length) return [];
+        const headers = rows[0].map(h => h.trim());
+        return rows.slice(1).map(r => {
+            const obj = {};
+            headers.forEach((h, idx) => { obj[h] = r[idx] !== undefined ? r[idx] : ''; });
+            return obj;
+        });
+    }
+
+    // ---- Exam session (in-memory helper, not persisted until submit) --
+    function shuffle(arr){
+        const a = arr.slice();
+        for(let i = a.length - 1; i > 0; i--){
+            const j = Math.floor(Math.random() * (i + 1));
+            [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+    }
+    function buildExam(subject, level){
+        const subjectDef = SUBJECTS.find(s => s.id === subject);
+        const target = subjectDef ? subjectDef.counts[level] : 10;
+        const bank = getQuestions(subject, level);
+        const picked = shuffle(bank).slice(0, target);
+        return { questions: picked, target, available: bank.length };
+    }
+
+    // ---- Results / stats ----------------------------------------------
+    function getAllResults(){
+        return _read(KEYS.RESULTS, []);
+    }
+    function saveResult(result){
+        const all = getAllResults();
+        const record = Object.assign({
+            id:_uid(),
+            date:new Date().toISOString(),
+            reviewer:getReviewerName()
+        }, result);
+        all.push(record);
+        _write(KEYS.RESULTS, all);
+        return record;
+    }
+    function getResults(subject, level, reviewer){
+        return getAllResults().filter(r =>
+            (!subject || r.subject === subject) &&
+            (!level || r.level === level) &&
+            (reviewer === undefined || (r.reviewer || '') === reviewer)
+        );
+    }
+    function getBestScore(subject, level, reviewer){
+        const rs = getResults(subject, level, reviewer === undefined ? getReviewerName() : reviewer);
+        if(!rs.length) return null;
+        return Math.max(...rs.map(r => r.percentage));
+    }
+    function getStats(reviewer){
+        const name = reviewer === undefined ? getReviewerName() : reviewer;
+        const all = getAllResults().filter(r => (r.reviewer || '') === name);
+        const examsTaken = all.length;
+        const avg = examsTaken ? Math.round(all.reduce((a,r) => a + r.percentage, 0) / examsTaken) : 0;
+        const highest = examsTaken ? Math.max(...all.map(r => r.percentage)) : 0;
+        return { examsTaken, avg, highest };
+    }
+
+    // ---- Detailed progress helpers -------------------------------------
+    function _reviewerResults(reviewer){
+        const name = reviewer === undefined ? getReviewerName() : reviewer;
+        return getAllResults().filter(r => (r.reviewer || '') === name);
+    }
+    // Best score + attempt count per subject/level, plus a per-subject average
+    // across whichever tiers have been attempted at least once.
+    function getSubjectBreakdown(reviewer){
+        const results = _reviewerResults(reviewer);
+        return SUBJECTS.map(s => {
+            const levels = {};
+            LEVELS.forEach(l => {
+                const lvlResults = results.filter(r => r.subject === s.id && r.level === l.id);
+                levels[l.id] = {
+                    best: lvlResults.length ? Math.max(...lvlResults.map(r => r.percentage)) : null,
+                    attempts: lvlResults.length
+                };
+            });
+            const bests = LEVELS.map(l => levels[l.id].best).filter(b => b !== null);
+            const avg = bests.length ? Math.round(bests.reduce((a,b) => a+b, 0) / bests.length) : null;
+            const totalAttempts = LEVELS.reduce((sum, l) => sum + levels[l.id].attempts, 0);
+            return { subject: s, levels, avg, totalAttempts };
+        });
+    }
+    // Most recent exam attempts, newest first.
+    function getRecentResults(limit, reviewer){
+        return _reviewerResults(reviewer)
+            .slice()
+            .sort((a, b) => new Date(b.date) - new Date(a.date))
+            .slice(0, limit || 10);
+    }
+    // Subject/level tiers whose best score is still below the passing mark.
+    function getWeakAreas(threshold, reviewer){
+        threshold = threshold === undefined ? 75 : threshold;
+        const results = _reviewerResults(reviewer);
+        const weak = [];
+        SUBJECTS.forEach(s => {
+            LEVELS.forEach(l => {
+                const lvlResults = results.filter(r => r.subject === s.id && r.level === l.id);
+                if(!lvlResults.length) return;
+                const best = Math.max(...lvlResults.map(r => r.percentage));
+                if(best < threshold) weak.push({ subject: s, level: l, best });
+            });
+        });
+        return weak.sort((a, b) => a.best - b.best);
+    }
+    // All attempts in chronological order, for plotting a trend line.
+    function getTrendData(reviewer){
+        return _reviewerResults(reviewer).slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+    }
+    // Clears only this reviewer's saved exam results/stats. Leaves the
+    // question bank and every other reviewer's results untouched.
+    function resetProgress(reviewer){
+        const name = reviewer === undefined ? getReviewerName() : reviewer;
+        const remaining = getAllResults().filter(r => (r.reviewer || '') !== name);
+        _write(KEYS.RESULTS, remaining);
+    }
+
+    // ---- Import / export (backup, since this is local-only storage) --
+    function exportData(){
+        return JSON.stringify({
+            questions:getAllQuestions(),
+            results:getAllResults(),
+            exportedAt:new Date().toISOString(),
+            version:1
+        }, null, 2);
+    }
+    function importData(json, mode){
+        let parsed;
+        try{ parsed = JSON.parse(json); } catch(e){ throw new Error('That file isn\'t valid JSON.'); }
+        const incomingQ = Array.isArray(parsed.questions) ? parsed.questions : [];
+        const incomingR = Array.isArray(parsed.results) ? parsed.results : [];
+        if(mode === 'replace'){
+            _write(KEYS.QUESTIONS, incomingQ);
+            _write(KEYS.RESULTS, incomingR);
+        } else {
+            const existingQ = getAllQuestions();
+            const existingIds = new Set(existingQ.map(q => q.id));
+            const merged = existingQ.concat(incomingQ.filter(q => !existingIds.has(q.id)));
+            _write(KEYS.QUESTIONS, merged);
+            const existingR = getAllResults();
+            _write(KEYS.RESULTS, existingR.concat(incomingR));
+        }
+    }
+    function clearAll(){
+        localStorage.removeItem(KEYS.QUESTIONS);
+        localStorage.removeItem(KEYS.RESULTS);
+    }
+
+    // ---- Dark mode (shared across pages) ------------------------------
+    function getDarkMode(){ return _read(KEYS.SETTINGS, {}).dark === true; }
+    function setDarkMode(val){
+        const s = _read(KEYS.SETTINGS, {});
+        s.dark = val;
+        _write(KEYS.SETTINGS, s);
+    }
+    function initDarkMode(){
+        if(getDarkMode()) document.body.classList.add('dark');
+        const btn = document.getElementById('darkModeBtn');
+        if(!btn) return;
+        const icon = btn.querySelector('i');
+        const sync = () => { if(icon) icon.className = document.body.classList.contains('dark') ? 'fa-solid fa-sun' : 'fa-solid fa-moon'; };
+        sync();
+        btn.addEventListener('click', () => {
+            document.body.classList.toggle('dark');
+            setDarkMode(document.body.classList.contains('dark'));
+            sync();
+        });
+    }
+
+    // ---- Reviewer identity (name only, remembered on this device) -----
+    function getReviewerName(){ return (_read(KEYS.SETTINGS, {}).reviewerName || '').trim(); }
+    function setReviewerName(name){
+        const s = _read(KEYS.SETTINGS, {});
+        s.reviewerName = (name || '').trim();
+        _write(KEYS.SETTINGS, s);
+    }
+    function clearReviewerName(){
+        const s = _read(KEYS.SETTINGS, {});
+        delete s.reviewerName;
+        _write(KEYS.SETTINGS, s);
+    }
+
+    // ---- Admin passcode (single shared passcode, remembered on device) ----
+    function hasAdminPasscode(){ return !!(_read(KEYS.SETTINGS, {}).adminPasscode); }
+    function setAdminPasscode(code){
+        const s = _read(KEYS.SETTINGS, {});
+        s.adminPasscode = (code || '').trim();
+        _write(KEYS.SETTINGS, s);
+    }
+    function checkAdminPasscode(code){
+        const s = _read(KEYS.SETTINGS, {});
+        return !!s.adminPasscode && s.adminPasscode === (code || '').trim();
+    }
+    function isAdminAuthed(){ return _read(KEYS.SETTINGS, {}).adminAuthed === true; }
+    function setAdminAuthed(val){
+        const s = _read(KEYS.SETTINGS, {});
+        s.adminAuthed = val;
+        _write(KEYS.SETTINGS, s);
+    }
+
+    return {
+        SUBJECTS, LEVELS,
+        getAllQuestions, getQuestions, getQuestion, addQuestion, updateQuestion, deleteQuestion, getQuestionCounts,
+        bulkAddQuestions, parseCSV,
+        buildExam,
+        getAllResults, saveResult, getResults, getBestScore, getStats,
+        getSubjectBreakdown, getRecentResults, getWeakAreas, getTrendData, resetProgress,
+        exportData, importData, clearAll,
+        initDarkMode,
+        getReviewerName, setReviewerName, clearReviewerName,
+        hasAdminPasscode, setAdminPasscode, checkAdminPasscode, isAdminAuthed, setAdminAuthed
+    };
+})();
+
+</script>
+<script>
+/* ============================================================
+   Single-page router: Dashboard, Subject, Exam, Admin all live
+   here and swap into #app based on the URL hash.
+   #/                    -> dashboard
+   #/subject/FAR         -> level-select ("exam permits") for FAR
+   #/exam/FAR/easy       -> take the exam
+   #/admin               -> question bank manager (passcode gated)
+   #/admin/FAR/easy      -> question bank manager, preselected
+   ============================================================ */
+
+CPA.initDarkMode();
+renderUserChip();
+
+const app = document.getElementById('app');
+let activeCleanup = null;
+function setCleanup(fn){ activeCleanup = fn; }
+
+function renderUserChip(){
+    const chip = document.getElementById('userChip');
+    const name = CPA.getReviewerName();
+    if(!name){ chip.style.display = 'none'; return; }
+    chip.style.display = 'flex';
+    chip.innerHTML = `<span class="avatar">${name.trim().charAt(0).toUpperCase()}</span><span>${name}</span>`;
+    chip.onclick = () => {
+        if(confirm(`Switch reviewer? You're currently signed in as "${name}". This won't delete any saved progress.`)){
+            CPA.clearReviewerName();
+            router();
+        }
+    };
+}
+
+function router(){
+    if(activeCleanup){ activeCleanup(); activeCleanup = null; }
+    renderUserChip();
+
+    const hash = location.hash.replace(/^#\/?/, '');
+    const parts = hash.split('/').filter(Boolean);
+
+    document.querySelectorAll('.topbar nav a').forEach(a => a.classList.remove('active'));
+
+    const isAdminRoute = parts[0] === 'admin';
+
+    // ---- Reviewer name gate (applies to every route) ----
+    if(!CPA.getReviewerName()){
+        renderNameGate(() => router());
+        return;
+    }
+
+    // ---- Admin passcode gate (applies only to /admin) ----
+    if(isAdminRoute && !CPA.isAdminAuthed()){
+        renderAdminGate(() => router());
+        return;
+    }
+
+    if(parts.length === 0){
+        document.querySelector('.topbar nav a[data-route="/"]').classList.add('active');
+        renderDashboard();
+    } else if(parts[0] === 'subject'){
+        document.querySelector('.topbar nav a[data-route="/"]').classList.add('active');
+        renderSubjectSelect(parts[1]);
+    } else if(parts[0] === 'exam'){
+        renderExam(parts[1], parts[2]);
+    } else if(parts[0] === 'admin'){
+        document.querySelector('.topbar nav a[data-route="/admin"]').classList.add('active');
+        renderAdmin(parts[1], parts[2]);
+    } else {
+        renderDashboard();
+    }
+    window.scrollTo(0, 0);
+}
+window.addEventListener('hashchange', router);
+window.addEventListener('DOMContentLoaded', router);
+
+
+/* ================= AUTH GATES ================= */
+function renderNameGate(onDone){
+    app.innerHTML = `
+        <div class="auth-shell">
+            <div class="auth-card">
+                <div class="seal-lg"><i class="fa-solid fa-scale-balanced"></i></div>
+                <h2>Welcome</h2>
+                <p>Enter your name so your scores and progress are kept under your own record. You'll stay signed in on this device.</p>
+                <input type="text" id="nameInput" placeholder="Your name" autocomplete="name">
+                <div class="auth-error" id="nameError"></div>
+                <button class="btn btn-primary" id="nameSubmitBtn"><i class="fa-solid fa-arrow-right"></i> Continue</button>
+            </div>
+        </div>`;
+    const input = document.getElementById('nameInput');
+    const err = document.getElementById('nameError');
+    const submit = () => {
+        const val = input.value.trim();
+        if(!val){ err.textContent = 'Please enter a name to continue.'; return; }
+        CPA.setReviewerName(val);
+        onDone();
+    };
+    document.getElementById('nameSubmitBtn').addEventListener('click', submit);
+    input.addEventListener('keydown', e => { if(e.key === 'Enter') submit(); });
+    input.focus();
+}
+
+function renderAdminGate(onDone){
+    const firstTime = !CPA.hasAdminPasscode();
+    app.innerHTML = `
+        <div class="auth-shell">
+            <div class="auth-card">
+                <div class="seal-lg"><i class="fa-solid fa-lock"></i></div>
+                <h2>${firstTime ? 'Set Up Admin Access' : 'Admin Passcode'}</h2>
+                <p>${firstTime
+                    ? 'Create a shared passcode for the Question Bank. Anyone with this passcode will be able to manage questions.'
+                    : 'Enter the shared admin passcode to manage the Question Bank on this device.'}</p>
+                <input type="password" id="passInput" placeholder="${firstTime ? 'Create a passcode' : 'Passcode'}" autocomplete="off">
+                ${firstTime ? `<input type="password" id="passConfirm" placeholder="Confirm passcode" autocomplete="off">` : ''}
+                <div class="auth-error" id="passError"></div>
+                <button class="btn btn-primary" id="passSubmitBtn"><i class="fa-solid fa-arrow-right"></i> ${firstTime ? 'Create & Continue' : 'Unlock'}</button>
+                <div class="auth-switch"><a id="backToDashLink">Back to Dashboard</a></div>
+            </div>
+        </div>`;
+    const input = document.getElementById('passInput');
+    const err = document.getElementById('passError');
+    const submit = () => {
+        const val = input.value;
+        if(!val){ err.textContent = 'Please enter a passcode.'; return; }
+        if(firstTime){
+            const confirmVal = document.getElementById('passConfirm').value;
+            if(val.length < 4){ err.textContent = 'Use at least 4 characters.'; return; }
+            if(val !== confirmVal){ err.textContent = "Passcodes don't match."; return; }
+            CPA.setAdminPasscode(val);
+            CPA.setAdminAuthed(true);
+            onDone();
+        } else {
+            if(!CPA.checkAdminPasscode(val)){ err.textContent = 'Incorrect passcode.'; input.value=''; input.focus(); return; }
+            CPA.setAdminAuthed(true);
+            onDone();
+        }
+    };
+    document.getElementById('passSubmitBtn').addEventListener('click', submit);
+    document.getElementById('backToDashLink').addEventListener('click', () => location.hash = '#/');
+    [input, document.getElementById('passConfirm')].forEach(el => {
+        if(el) el.addEventListener('keydown', e => { if(e.key === 'Enter') submit(); });
+    });
+    input.focus();
+}
+
+
+/* ================= DASHBOARD ================= */
+function renderDashboard(){
+    app.innerHTML = `
+        <section class="hero container">
+            <span class="eyebrow"><i class="fa-solid fa-stamp"></i> CPALE Preparation Platform</span>
+            <h1>Prepare smarter.<br>Pass with <em>certainty</em>.</h1>
+            <p>Six subjects, three difficulty tiers, and a question bank you control. Work through Easy, Intermediate, and Hard sets the way the board actually tiers its exams.</p>
+            <div class="hero-actions">
+                <button class="btn btn-primary" id="startReviewBtn"><i class="fa-solid fa-play"></i> Start Reviewing</button>
+                <a class="btn btn-outline" onclick="location.hash='#/admin'"><i class="fa-solid fa-pen-ruler"></i> Manage Question Bank</a>
+            </div>
+        </section>
+
+        <section class="section" id="subjectsSection">
+            <div class="container">
+                <div class="section-head">
+                    <div><h2>Choose your subject</h2><p>Each subject holds exam permits across every difficulty tier — Easy through Mastery.</p></div>
+                </div>
+                <div class="subject-grid" id="subjectGrid"></div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="container">
+                <div class="section-head">
+                    <div><h2>Your progress</h2><p>Pulled from every exam ${CPA.getReviewerName()} has completed on this device.</p></div>
+                    <button class="btn btn-outline btn-sm" id="resetProgressBtn"><i class="fa-solid fa-rotate-left"></i> Reset My Progress</button>
+                </div>
+                <div class="stats-grid" style="margin-bottom:28px;">
+                    <div class="stat-card"><div class="label">Average Score</div><div class="value" id="averageScore">0%</div></div>
+                    <div class="stat-card"><div class="label">Highest Score</div><div class="value" id="highestScore">0%</div></div>
+                    <div class="stat-card"><div class="label">Exams Taken</div><div class="value" id="examCount">0</div></div>
+                </div>
+
+                <div class="progress-trend" id="trendCard"></div>
+
+                <div id="weakAreasCard"></div>
+
+                <div class="progress-subhead">Progress by Subject</div>
+                <div class="progress-subdesc">Your best score in each tier, per subject. Tap a card to jump to that subject.</div>
+                <div class="subject-breakdown-grid" id="subjectBreakdownGrid"></div>
+
+                <div class="progress-subhead">Recent Activity</div>
+                <div class="progress-subdesc">Your most recent exam attempts, newest first.</div>
+                <div class="recent-activity-list" id="recentActivityList"></div>
+            </div>
+        </section>
+    `;
+
+    const grid = document.getElementById('subjectGrid');
+    CPA.SUBJECTS.forEach(s => {
+        const counts = CPA.getQuestionCounts(s.id);
+        const card = document.createElement('a');
+        card.onclick = () => location.hash = `#/subject/${s.id}`;
+        card.className = 'subject-card';
+        card.innerHTML = `
+            <div class="code-row"><span class="code">${s.id}</span><i class="fa-solid ${s.icon} card-icon"></i></div>
+            <h3>${s.name}</h3>
+            <p class="desc">${s.full}</p>
+            <div class="levels-row">
+                ${CPA.LEVELS.map(l => `<span class="level-chip ${counts[l.id] ? 'done' : ''}">${l.label} · ${counts[l.id]}/${s.counts[l.id]}</span>`).join('')}
+            </div>`;
+        grid.appendChild(card);
+    });
+
+    const stats = CPA.getStats();
+    document.getElementById('averageScore').textContent = stats.avg + '%';
+    document.getElementById('highestScore').textContent = stats.highest + '%';
+    document.getElementById('examCount').textContent = stats.examsTaken;
+
+    document.getElementById('startReviewBtn').addEventListener('click', () => {
+        document.getElementById('subjectsSection').scrollIntoView({ behavior:'smooth' });
+    });
+
+    document.getElementById('resetProgressBtn').addEventListener('click', () => {
+        const name = CPA.getReviewerName();
+        if(confirm(`Reset all saved exam progress for "${name}"? This clears your scores and history but keeps the question bank intact. This can't be undone.`)){
+            CPA.resetProgress();
+            renderDashboard();
+        }
+    });
+
+    // ---- Detailed progress widgets ----
+    document.getElementById('trendCard').innerHTML = buildTrendSVG(CPA.getTrendData());
+
+    const weakAreasEl = document.getElementById('weakAreasCard');
+    weakAreasEl.innerHTML = buildWeakAreasHTML(CPA.getWeakAreas());
+    weakAreasEl.querySelectorAll('.weak-chip').forEach(chip => {
+        chip.addEventListener('click', () => location.hash = `#/exam/${chip.dataset.subject}/${chip.dataset.level}`);
+    });
+
+    const sbGrid = document.getElementById('subjectBreakdownGrid');
+    sbGrid.innerHTML = buildSubjectBreakdownHTML(CPA.getSubjectBreakdown());
+    sbGrid.querySelectorAll('.sb-card').forEach(card => {
+        card.addEventListener('click', () => location.hash = `#/subject/${card.dataset.subject}`);
+    });
+
+    document.getElementById('recentActivityList').innerHTML = buildRecentActivityHTML(CPA.getRecentResults(8));
+}
+
+// ---- Detailed progress render helpers ----
+function scoreClass(pct){ return pct >= 75 ? 'good' : pct >= 60 ? 'warn' : 'bad'; }
+function scoreColor(pct){ return pct >= 75 ? 'var(--good)' : pct >= 60 ? 'var(--brass)' : 'var(--bad)'; }
+
+function buildTrendSVG(results){
+    if(results.length < 2){
+        return `<div class="trend-empty"><i class="fa-solid fa-chart-line" style="font-size:26px;color:var(--brass);margin-bottom:10px;display:block;"></i>Take a couple more exams to see your score trend over time.</div>`;
+    }
+    const w = 680, h = 200, padL = 34, padR = 14, padT = 16, padB = 12;
+    const innerW = w - padL - padR, innerH = h - padT - padB;
+    const n = results.length;
+    const pts = results.map((r, i) => ({
+        x: padL + (n === 1 ? 0 : (i / (n - 1)) * innerW),
+        y: padT + innerH - (r.percentage / 100) * innerH,
+        pct: r.percentage
+    }));
+    const linePath = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' ');
+    const areaPath = linePath + ` L${pts[pts.length-1].x.toFixed(1)},${(padT+innerH).toFixed(1)} L${pts[0].x.toFixed(1)},${(padT+innerH).toFixed(1)} Z`;
+    const gridLines = [0, 25, 50, 75, 100].map(v => {
+        const y = padT + innerH - (v / 100) * innerH;
+        return `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${w-padR}" y2="${y.toFixed(1)}" stroke="var(--paper-line)" stroke-width="1"/>
+                <text x="${padL-8}" y="${(y+4).toFixed(1)}" font-size="10" font-family="IBM Plex Mono, monospace" fill="var(--ink-faint)" text-anchor="end">${v}</text>`;
+    }).join('');
+    const passY = padT + innerH - (75 / 100) * innerH;
+    const dots = pts.map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4.5" fill="${scoreColor(p.pct)}" stroke="var(--card)" stroke-width="2"><title>${p.pct}%</title></circle>`).join('');
+
+    return `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <h3 style="font-family:var(--font-display); font-size:18px;">Score Trend</h3>
+            <span style="font-family:var(--font-mono); font-size:12px; color:var(--ink-soft);">Last ${n} exams</span>
+        </div>
+        <svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none">
+            ${gridLines}
+            <line x1="${padL}" y1="${passY.toFixed(1)}" x2="${w-padR}" y2="${passY.toFixed(1)}" stroke="var(--brass)" stroke-width="1" stroke-dasharray="4 4"/>
+            <path d="${areaPath}" fill="var(--navy-700)" opacity="0.08"/>
+            <path d="${linePath}" fill="none" stroke="var(--navy-700)" stroke-width="2.5"/>
+            ${dots}
+        </svg>
+        <div style="font-size:11.5px; color:var(--ink-faint); margin-top:6px;">Dashed line marks the 75% passing mark.</div>`;
+}
+
+function buildWeakAreasHTML(weak){
+    if(!weak.length) return '';
+    return `
+        <div class="weak-areas-card">
+            <h3><i class="fa-solid fa-triangle-exclamation"></i> Needs Review</h3>
+            <p>These tiers are still below the 75% passing mark, based on your best attempt so far. Tap one to jump back in.</p>
+            <div class="weak-chip-list">
+                ${weak.map(w => `<span class="weak-chip" data-subject="${w.subject.id}" data-level="${w.level.id}">${w.subject.id} · ${w.level.label} · ${w.best}%</span>`).join('')}
+            </div>
+        </div>`;
+}
+
+function buildSubjectBreakdownHTML(breakdown){
+    return breakdown.map(b => {
+        const avgClass = b.avg === null ? 'none' : scoreClass(b.avg);
+        const avgLabel = b.avg === null ? 'No attempts' : b.avg + '%';
+        const levelsHtml = CPA.LEVELS.map(l => {
+            const lv = b.levels[l.id];
+            const pct = lv.best === null ? 0 : lv.best;
+            const barColor = lv.best === null ? 'var(--paper-line)' : scoreColor(lv.best);
+            const scoreLabel = lv.best === null ? 'Not tried' : lv.best + '%';
+            return `<div class="sb-level-row">
+                <span class="sb-level-label">${l.label}</span>
+                <div class="sb-level-bar"><div class="sb-level-fill" style="width:${pct}%; background:${barColor};"></div></div>
+                <span class="sb-level-score">${scoreLabel}</span>
+            </div>`;
+        }).join('');
+        return `<div class="sb-card" data-subject="${b.subject.id}">
+            <div class="sb-top">
+                <span class="sb-name">${b.subject.name}</span>
+                <span class="sb-avg ${avgClass}">${avgLabel}</span>
+            </div>
+            <div class="sb-levels">${levelsHtml}</div>
+        </div>`;
+    }).join('');
+}
+
+function buildRecentActivityHTML(recent){
+    if(!recent.length){
+        return `<div class="empty-state"><i class="fa-solid fa-clock-rotate-left"></i><h3>No exams yet</h3><p>Take your first exam to start building your history.</p></div>`;
+    }
+    return recent.map(r => {
+        const subj = CPA.SUBJECTS.find(s => s.id === r.subject);
+        const lvl = CPA.LEVELS.find(l => l.id === r.level);
+        const dur = r.durationSec || 0;
+        const dateStr = new Date(r.date).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
+        const timeStr = new Date(r.date).toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
+        return `<div class="ra-row">
+            <div class="ra-left">
+                <span class="ra-badge ${scoreClass(r.percentage)}">${r.percentage}%</span>
+                <div>
+                    <div class="ra-title">${subj ? subj.name : r.subject} · ${lvl ? lvl.label : r.level}</div>
+                    <div class="ra-meta">${r.score}/${r.total} correct · ${Math.floor(dur/60)}m ${dur%60}s</div>
+                </div>
+            </div>
+            <span class="ra-date">${dateStr} · ${timeStr}</span>
+        </div>`;
+    }).join('');
+}
+
+
+/* ================= SUBJECT / LEVEL SELECT ================= */
+function renderSubjectSelect(subjectId){
+    const subject = CPA.SUBJECTS.find(s => s.id === subjectId);
+
+    if(!subject){
+        app.innerHTML = `
+            <div class="container">
+                <div class="permit-header">
+                    <a class="back-link" onclick="location.hash='#/'"><i class="fa-solid fa-arrow-left"></i> All subjects</a>
+                    <h1>Subject not found</h1>
+                    <p>That subject doesn't exist. Head back to the dashboard.</p>
+                </div>
+            </div>`;
+        return;
+    }
+
+    const counts = CPA.getQuestionCounts(subject.id);
+
+    app.innerHTML = `
+        <div class="container">
+            <div class="permit-header">
+                <a class="back-link" onclick="location.hash='#/'"><i class="fa-solid fa-arrow-left"></i> All subjects</a>
+                <h1>${subject.name} — ${subject.full}</h1>
+                <p>Choose a difficulty tier below. Each permit shows how many questions are loaded in the bank versus the exam target.</p>
+            </div>
+            <div class="permit-grid" id="permitGrid"></div>
+        </div>`;
+
+    const grid = document.getElementById('permitGrid');
+    CPA.LEVELS.forEach(level => {
+        const target = subject.counts[level.id];
+        const available = counts[level.id];
+        const best = CPA.getBestScore(subject.id, level.id);
+        const canStart = available > 0;
+
+        const el = document.createElement('div');
+        el.className = 'permit';
+        el.innerHTML = `
+            <div class="permit-top">
+                <div>
+                    <div class="tier">${level.label} Tier</div>
+                    <h3>${level.label}</h3>
+                    <div class="qcount">${Math.min(available, target)} / ${target} questions ready</div>
+                </div>
+                ${best !== null ? `<span class="permit-stamp">Best ${best}%</span>` : ''}
+            </div>
+            <div class="permit-body">
+                <p style="color:var(--ink-soft); font-size:14px; line-height:1.6;">${level.desc}</p>
+                <div class="permit-stub"></div>
+                ${canStart
+                    ? `<button class="btn btn-primary btn-sm" style="justify-content:center;" onclick="location.hash='#/exam/${subject.id}/${level.id}'"><i class="fa-solid fa-file-pen"></i> Start ${level.label} Exam</button>`
+                    : `<div class="permit-locked"><i class="fa-solid fa-lock"></i> No questions yet in this tier — add some from the Question Bank.</div>
+                       <button class="btn btn-outline btn-sm" style="justify-content:center;" onclick="location.hash='#/admin/${subject.id}/${level.id}'"><i class="fa-solid fa-plus"></i> Add Questions</button>`
+                }
+            </div>`;
+        grid.appendChild(el);
+    });
+}
+
+
+/* ================= EXAM ================= */
+function renderExam(subjectId, levelId){
+    const subject = CPA.SUBJECTS.find(s => s.id === subjectId);
+    const level = CPA.LEVELS.find(l => l.id === levelId);
+
+    if(!subject || !level){
+        app.innerHTML = `<div class="exam-shell"><div class="empty-state"><i class="fa-solid fa-triangle-exclamation"></i><h3>Exam not found</h3><p>Check the link or start again from the dashboard.</p><button class="btn btn-primary" onclick="location.hash='#/'">Back to Dashboard</button></div></div>`;
+        return;
+    }
+
+    const { questions, target, available } = CPA.buildExam(subjectId, levelId);
+
+    if(!questions.length){
+        app.innerHTML = `<div class="exam-shell"><div class="empty-state"><i class="fa-solid fa-inbox"></i><h3>No questions yet</h3><p>The ${level.label} tier for ${subject.name} is empty. Add questions in the Question Bank first.</p><button class="btn btn-primary" onclick="location.hash='#/admin/${subject.id}/${level.id}'">Go to Question Bank</button></div></div>`;
+        return;
+    }
+
+    let current = 0;
+    const responses = new Array(questions.length).fill(null);
+    const startTime = Date.now();
+
+    const timerInterval = setInterval(() => {
+        const secs = Math.floor((Date.now() - startTime) / 1000);
+        const m = String(Math.floor(secs/60)).padStart(2,'0');
+        const s = String(secs%60).padStart(2,'0');
+        const el = document.getElementById('timerDisplay');
+        if(el) el.textContent = `${m}:${s}`;
+    }, 1000);
+    setCleanup(() => clearInterval(timerInterval));
+
+    renderQuestion();
+
+    function renderQuestion(){
+        const q = questions[current];
+        const pct = Math.round((current / questions.length) * 100);
+        const answered = responses[current];
+
+        let bodyHtml = '';
+        if(q.type === 'problem'){
+            const val = answered || '';
+            bodyHtml = `<div class="problem-answer-box"><textarea id="problemInput" rows="3" placeholder="Enter your final answer here...">${val}</textarea></div>`;
+        } else {
+            bodyHtml = `<div class="choice-list">` + q.choices.map((choice, i) => `
+                <div class="choice ${answered === i ? 'selected' : ''}" tabindex="0" onclick="examSelectChoice(${i})" onkeydown="if(event.key==='Enter')examSelectChoice(${i})">
+                    <span class="letter">${String.fromCharCode(65+i)}</span><span>${choice}</span>
+                </div>`).join('') + `</div>`;
+        }
+
+        app.innerHTML = `
+            <div class="exam-shell">
+                <div class="exam-progress-bar"><div class="exam-progress-fill" style="width:${pct}%"></div></div>
+                <div class="exam-meta">
+                    <span>${subject.name} · ${level.label} · Question ${current+1} of ${questions.length}${available < target ? ` (bank has ${available}/${target})` : ''}</span>
+                    <span class="exam-timer" id="timerDisplay">00:00</span>
+                </div>
+                <div class="question-card">
+                    <span class="q-tag">${q.type === 'problem' ? 'Problem Solving' : 'Multiple Choice'}</span>
+                    <div class="q-text">${q.question}</div>
+                    ${bodyHtml}
+                </div>
+                <div class="exam-nav">
+                    <button class="btn btn-outline" id="prevBtn" ${current === 0 ? 'disabled' : ''}><i class="fa-solid fa-arrow-left"></i> Previous</button>
+                    <button class="btn btn-primary" id="nextBtn">${current === questions.length - 1 ? 'Submit Exam' : 'Next'} <i class="fa-solid fa-arrow-right"></i></button>
+                </div>
+            </div>`;
+
+        if(q.type === 'problem'){
+            document.getElementById('problemInput').addEventListener('input', e => { responses[current] = e.target.value; });
+        }
+        document.getElementById('prevBtn').addEventListener('click', () => { current = Math.max(0, current - 1); renderQuestion(); });
+        document.getElementById('nextBtn').addEventListener('click', () => {
+            if(current === questions.length - 1) submitExam();
+            else { current++; renderQuestion(); }
+        });
+    }
+
+    window.examSelectChoice = function(i){ responses[current] = i; renderQuestion(); };
+
+    function submitExam(){
+        clearInterval(timerInterval);
+        const durationSec = Math.floor((Date.now() - startTime) / 1000);
+        let correctCount = 0;
+        const review = questions.map((q, i) => {
+            let isCorrect;
+            if(q.type === 'mcq'){
+                isCorrect = responses[i] === q.correctIndex;
+            } else {
+                const given = (responses[i] || '').trim().toLowerCase();
+                const expected = (q.answer || '').trim().toLowerCase();
+                isCorrect = given.length > 0 && expected.length > 0 && given === expected;
+            }
+            if(isCorrect) correctCount++;
+            return { q, given:responses[i], isCorrect };
+        });
+        const percentage = Math.round((correctCount / questions.length) * 100);
+        CPA.saveResult({ subject:subject.id, level:level.id, score:correctCount, total:questions.length, percentage, durationSec });
+        renderResults(review, percentage, correctCount, questions.length, durationSec);
+    }
+
+    function verdict(pct){
+        if(pct >= 80) return 'Well within board-passing range';
+        if(pct >= 60) return 'Getting there — a bit more review';
+        return 'Needs focused review';
+    }
+
+    function renderResults(review, pct, correct, total, durationSec){
+        const m = Math.floor(durationSec/60), s = durationSec%60;
+        const ringColor = pct >= 80 ? 'var(--good)' : pct >= 60 ? 'var(--brass)' : 'var(--bad)';
+
+        app.innerHTML = `
+        <div class="exam-shell">
+            <div class="result-shell">
+                <div class="result-ring">
+                    <svg width="180" height="180" viewBox="0 0 180 180">
+                        <circle cx="90" cy="90" r="78" fill="none" stroke="var(--paper-line)" stroke-width="14"/>
+                        <circle cx="90" cy="90" r="78" fill="none" stroke="${ringColor}" stroke-width="14"
+                            stroke-dasharray="${2*Math.PI*78}" stroke-dashoffset="${2*Math.PI*78*(1-pct/100)}"
+                            stroke-linecap="round" transform="rotate(-90 90 90)"/>
+                    </svg>
+                    <div class="pct"><span class="num">${pct}%</span><span class="cap">Score</span></div>
+                </div>
+                <div class="result-verdict">${verdict(pct)}</div>
+                <div class="result-detail">${correct} of ${total} correct · ${subject.name} · ${level.label} · ${m}m ${s}s</div>
+                <div style="display:flex; gap:14px; justify-content:center; flex-wrap:wrap;">
+                    <button class="btn btn-outline" onclick="location.hash='#/subject/${subject.id}'"><i class="fa-solid fa-rotate-left"></i> Try Another Tier</button>
+                    <button class="btn btn-primary" onclick="location.hash='#/exam/${subject.id}/${level.id}'; router();"><i class="fa-solid fa-arrows-rotate"></i> Retake ${level.label}</button>
+                </div>
+            </div>
+            <div class="section-head" style="margin-top:50px;"><div><h2 style="font-size:24px;">Review</h2></div></div>
+            <div class="review-list">
+                ${review.map((r, i) => `
+                    <div class="review-item ${r.isCorrect ? 'correct' : 'incorrect'}">
+                        <div class="rq">${i+1}. ${r.q.question}</div>
+                        <div class="ra">
+                            ${r.q.type === 'mcq'
+                                ? `Your answer: <b class="${r.isCorrect ? 'correct-text' : 'wrong-text'}">${r.given !== null ? r.q.choices[r.given] : '(skipped)'}</b>
+                                   ${!r.isCorrect ? `&nbsp;·&nbsp; Correct answer: <b class="correct-text">${r.q.choices[r.q.correctIndex]}</b>` : ''}`
+                                : `Your answer: <b class="${r.isCorrect ? 'correct-text' : 'wrong-text'}">${r.given || '(skipped)'}</b>
+                                   ${!r.isCorrect ? `&nbsp;·&nbsp; Correct answer: <b class="correct-text">${r.q.answer}</b>` : ''}`
+                            }
+                            ${r.q.explanation ? `<div style="margin-top:6px;">${r.q.explanation}</div>` : ''}
+                            ${r.q.type === 'problem' && r.q.solution ? `<div style="margin-top:6px; white-space:pre-wrap;"><i>Solution:</i> ${r.q.solution}</div>` : ''}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>`;
+    }
+}
+
+
+/* ================= ADMIN ================= */
+function renderAdmin(presetSubject, presetLevel){
+    let activeSubject = presetSubject && CPA.SUBJECTS.some(s => s.id === presetSubject) ? presetSubject : CPA.SUBJECTS[0].id;
+    let activeLevel = presetLevel && CPA.LEVELS.some(l => l.id === presetLevel) ? presetLevel : 'easy';
+    let editingId = null;
+    let modalType = 'mcq';
+
+    app.innerHTML = `
+        <div class="admin-shell">
+            <aside class="admin-sidebar">
+                <h4>Subjects</h4>
+                <div id="subjectList"></div>
+                <h4>Backup</h4>
+                <p style="font-size:12.5px; color:var(--ink-soft); padding:0 10px; line-height:1.6;">
+                    Everything here is stored only in this browser. Export a backup regularly so your work isn't lost if you clear browser data.
+                </p>
+                <div style="display:flex; gap:8px; padding:0 10px; margin-top:10px;">
+                    <button class="btn btn-outline btn-sm" id="exportBtn" style="flex:1; justify-content:center;"><i class="fa-solid fa-download"></i> Export</button>
+                    <button class="btn btn-outline btn-sm" id="importBtn" style="flex:1; justify-content:center;"><i class="fa-solid fa-upload"></i> Import</button>
+                </div>
+                <input type="file" id="importFile" accept="application/json" style="display:none;">
+                <h4>Admin Session</h4>
+                <div style="padding:0 10px;">
+                    <button class="btn btn-outline btn-sm" id="adminLogoutBtn" style="width:100%; justify-content:center;"><i class="fa-solid fa-right-from-bracket"></i> Log Out of Admin</button>
+                </div>
+            </aside>
+            <main class="admin-main">
+                <div class="section-head">
+                    <div><h2 id="mainSubjectTitle">Subject</h2><p id="mainSubjectDesc">Manage questions for this subject.</p></div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <button class="btn btn-outline" id="bulkImportBtn"><i class="fa-solid fa-file-import"></i> Bulk Import</button>
+                        <button class="btn btn-primary" id="addQuestionBtn"><i class="fa-solid fa-plus"></i> Add Question</button>
+                    </div>
+                </div>
+                <div class="level-tabs" id="levelTabs"></div>
+                <div class="qb-toolbar"><input type="text" class="qb-search" id="searchInput" placeholder="Search questions in this tier..."></div>
+                <div id="questionList"></div>
+            </main>
+        </div>`;
+
+    const subjectListEl = document.getElementById('subjectList');
+    const levelTabsEl = document.getElementById('levelTabs');
+    const questionListEl = document.getElementById('questionList');
+    const searchInput = document.getElementById('searchInput');
+
+    document.getElementById('adminLogoutBtn').addEventListener('click', () => {
+        CPA.setAdminAuthed(false);
+        location.hash = '#/';
+    });
+
+    function renderSidebar(){
+        subjectListEl.innerHTML = CPA.SUBJECTS.map(s => `
+            <div class="admin-subject-item ${s.id === activeSubject ? 'active' : ''}" data-sid="${s.id}">
+                <i class="fa-solid ${s.icon}" style="width:18px;"></i> ${s.name}
+            </div>`).join('');
+        subjectListEl.querySelectorAll('.admin-subject-item').forEach(el => {
+            el.addEventListener('click', () => { activeSubject = el.dataset.sid; refreshAll(); });
+        });
+    }
+
+    function renderLevelTabs(){
+        const counts = CPA.getQuestionCounts(activeSubject);
+        const subject = CPA.SUBJECTS.find(s => s.id === activeSubject);
+        levelTabsEl.innerHTML = CPA.LEVELS.map(l => `
+            <button class="level-tab ${l.id === activeLevel ? 'active' : ''}" data-lid="${l.id}">
+                ${l.label} <span class="count-badge">${counts[l.id]}/${subject.counts[l.id]}</span>
+            </button>`).join('');
+        levelTabsEl.querySelectorAll('.level-tab').forEach(el => {
+            el.addEventListener('click', () => { activeLevel = el.dataset.lid; refreshAll(); });
+        });
+    }
+
+    function renderHeader(){
+        const s = CPA.SUBJECTS.find(x => x.id === activeSubject);
+        document.getElementById('mainSubjectTitle').textContent = s.name + ' — ' + s.full;
+        document.getElementById('mainSubjectDesc').textContent = 'Manage the Easy, Intermediate, Hard, and Mastery question tiers for this subject.';
+    }
+
+    function renderQuestions(){
+        const term = searchInput.value.trim().toLowerCase();
+        let qs = CPA.getQuestions(activeSubject, activeLevel);
+        if(term) qs = qs.filter(q => q.question.toLowerCase().includes(term));
+
+        if(!qs.length){
+            questionListEl.innerHTML = `
+                <div class="empty-state">
+                    <i class="fa-solid fa-inbox"></i>
+                    <h3>No questions here yet</h3>
+                    <p>Add the first ${CPA.LEVELS.find(l=>l.id===activeLevel).label} question for this subject to unlock its exam permit, or bulk-import a whole batch at once.</p>
+                    <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+                        <button class="btn btn-outline" id="emptyBulkBtn"><i class="fa-solid fa-file-import"></i> Bulk Import</button>
+                        <button class="btn btn-primary" id="emptyAddBtn"><i class="fa-solid fa-plus"></i> Add Question</button>
+                    </div>
+                </div>`;
+            document.getElementById('emptyAddBtn').addEventListener('click', () => openModal());
+            document.getElementById('emptyBulkBtn').addEventListener('click', () => openBulkImportModal());
+            return;
+        }
+
+        questionListEl.innerHTML = qs.map(q => `
+            <div class="question-row">
+                <div class="qr-top">
+                    <div>
+                        <div class="qr-text">${q.question}</div>
+                        <div class="qr-meta">${q.type === 'mcq' ? 'Multiple Choice' : 'Problem Solving'} · Added ${new Date(q.createdAt).toLocaleDateString()}</div>
+                    </div>
+                    <div class="qr-actions">
+                        <button class="qr-icon-btn" title="Edit" data-edit="${q.id}"><i class="fa-solid fa-pen"></i></button>
+                        <button class="qr-icon-btn" title="Delete" data-del="${q.id}"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                </div>
+            </div>`).join('');
+
+        questionListEl.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => openModal(btn.dataset.edit)));
+        questionListEl.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', () => {
+            if(confirm('Delete this question? This cannot be undone.')){
+                CPA.deleteQuestion(btn.dataset.del);
+                refreshAll();
+            }
+        }));
+    }
+
+    function refreshAll(){ renderSidebar(); renderLevelTabs(); renderHeader(); renderQuestions(); }
+
+    searchInput.addEventListener('input', renderQuestions);
+    document.getElementById('addQuestionBtn').addEventListener('click', () => openModal());
+    document.getElementById('bulkImportBtn').addEventListener('click', () => openBulkImportModal());
+    document.getElementById('exportBtn').addEventListener('click', doExport);
+    const importFileInput = document.getElementById('importFile');
+    document.getElementById('importBtn').addEventListener('click', () => importFileInput.click());
+    importFileInput.addEventListener('change', () => doImport(importFileInput));
+
+    function openModal(id){
+        editingId = id || null;
+        const existing = id ? CPA.getQuestion(id) : null;
+        modalType = existing ? existing.type : 'mcq';
+
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.innerHTML = `
+            <div class="modal">
+                <h3>${existing ? 'Edit Question' : 'Add Question'}</h3>
+                <div class="type-toggle">
+                    <button type="button" id="toggleMcq" class="${modalType==='mcq'?'active':''}">Multiple Choice</button>
+                    <button type="button" id="toggleProblem" class="${modalType==='problem'?'active':''}">Problem Solving</button>
+                </div>
+                <div class="form-group">
+                    <label>Question</label>
+                    <textarea id="fQuestion" rows="3" placeholder="Type the question here...">${existing ? existing.question : ''}</textarea>
+                </div>
+                <div id="typeFields"></div>
+                <div class="form-group">
+                    <label>Explanation <span style="text-transform:none; font-weight:400;">(optional, shown after answering)</span></label>
+                    <textarea id="fExplanation" rows="2" placeholder="Why this is the correct answer...">${existing ? existing.explanation || '' : ''}</textarea>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-outline" id="cancelModalBtn">Cancel</button>
+                    <button class="btn btn-primary" id="saveQuestionBtn">Save Question</button>
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+
+        function renderTypeFields(){
+            const box = overlay.querySelector('#typeFields');
+            if(modalType === 'mcq'){
+                const choices = existing && existing.type === 'mcq' ? existing.choices : ['', '', '', ''];
+                const correctIndex = existing && existing.type === 'mcq' ? existing.correctIndex : 0;
+                box.innerHTML = `
+                    <div class="form-group">
+                        <label>Choices <span style="text-transform:none; font-weight:400;">(mark the correct one)</span></label>
+                        ${choices.map((c, i) => `
+                            <div class="choice-input-row">
+                                <input type="radio" name="correctChoice" value="${i}" ${i === correctIndex ? 'checked' : ''}>
+                                <input type="text" class="choiceText" placeholder="Choice ${String.fromCharCode(65+i)}" value="${c.replace(/"/g,'&quot;')}">
+                            </div>`).join('')}
+                    </div>`;
+            } else {
+                box.innerHTML = `
+                    <div class="form-group">
+                        <label>Correct Final Answer</label>
+                        <input type="text" id="fAnswer" placeholder="e.g. 42,500" value="${existing && existing.type === 'problem' ? existing.answer : ''}">
+                    </div>
+                    <div class="form-group">
+                        <label>Solution / Steps <span style="text-transform:none; font-weight:400;">(optional, shown after answering)</span></label>
+                        <textarea id="fSolution" rows="4" placeholder="Step-by-step working...">${existing && existing.type === 'problem' ? existing.solution || '' : ''}</textarea>
+                    </div>`;
+            }
+        }
+        renderTypeFields();
+
+        overlay.querySelector('#toggleMcq').addEventListener('click', () => {
+            modalType = 'mcq';
+            overlay.querySelector('#toggleMcq').classList.add('active');
+            overlay.querySelector('#toggleProblem').classList.remove('active');
+            renderTypeFields();
+        });
+        overlay.querySelector('#toggleProblem').addEventListener('click', () => {
+            modalType = 'problem';
+            overlay.querySelector('#toggleProblem').classList.add('active');
+            overlay.querySelector('#toggleMcq').classList.remove('active');
+            renderTypeFields();
+        });
+        overlay.querySelector('#cancelModalBtn').addEventListener('click', () => overlay.remove());
+        overlay.addEventListener('click', e => { if(e.target === overlay) overlay.remove(); });
+        overlay.querySelector('#saveQuestionBtn').addEventListener('click', () => saveQuestion(overlay));
+    }
+
+    function saveQuestion(overlay){
+        const questionText = overlay.querySelector('#fQuestion').value.trim();
+        if(!questionText){ alert('Please enter the question text.'); return; }
+
+        let payload = { subject:activeSubject, level:activeLevel, type:modalType, question:questionText,
+            explanation: overlay.querySelector('#fExplanation').value.trim() };
+
+        if(modalType === 'mcq'){
+            const texts = Array.from(overlay.querySelectorAll('.choiceText')).map(i => i.value.trim());
+            if(texts.some(t => !t)){ alert('Please fill in all four choices.'); return; }
+            const correctRadio = overlay.querySelector('input[name="correctChoice"]:checked');
+            if(!correctRadio){ alert('Please mark the correct choice.'); return; }
+            payload.choices = texts;
+            payload.correctIndex = parseInt(correctRadio.value, 10);
+        } else {
+            const answer = overlay.querySelector('#fAnswer').value.trim();
+            if(!answer){ alert('Please enter the correct final answer.'); return; }
+            payload.answer = answer;
+            payload.solution = overlay.querySelector('#fSolution').value.trim();
+        }
+
+        if(editingId) CPA.updateQuestion(editingId, payload);
+        else CPA.addQuestion(payload);
+
+        overlay.remove();
+        refreshAll();
+    }
+
+    /* ---------------- Bulk Import ---------------- */
+    function openBulkImportModal(){
+        let bulkFormat = 'csv'; // 'csv' | 'json'
+        let loadedText = '';
+        let loadedFileName = '';
+
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.innerHTML = `
+            <div class="modal modal-wide">
+                <h3>Bulk Import Questions</h3>
+                <div class="bulk-help">
+                    Upload or paste many questions at once instead of adding them one by one.
+                    Any row that doesn't specify its own <code>subject</code> / <code>level</code> will use the defaults below.
+                    <br><a id="downloadTemplateLink">Download a starter CSV template</a>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Default Subject</label>
+                        <select id="bulkDefaultSubject">
+                            ${CPA.SUBJECTS.map(s => `<option value="${s.id}" ${s.id === activeSubject ? 'selected' : ''}>${s.id} — ${s.full}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Default Level</label>
+                        <select id="bulkDefaultLevel">
+                            ${CPA.LEVELS.map(l => `<option value="${l.id}" ${l.id === activeLevel ? 'selected' : ''}>${l.label}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="bulk-format-toggle">
+                    <button type="button" id="bulkFormatCsv" class="active">CSV</button>
+                    <button type="button" id="bulkFormatJson">JSON</button>
+                </div>
+
+                <div id="bulkHelpText" class="bulk-help">
+                    CSV columns: <code>type</code>, <code>question</code>, <code>choiceA</code>, <code>choiceB</code>, <code>choiceC</code>, <code>choiceD</code>, <code>correct</code>, <code>answer</code>, <code>solution</code>, <code>explanation</code>, <code>subject</code>, <code>level</code>.
+                    Use <code>type=mcq</code> with choices + <code>correct</code> (A/B/C/D, or 1-4), or <code>type=problem</code> with <code>answer</code> (+ optional <code>solution</code>). <code>subject</code>/<code>level</code> columns are optional if you set defaults above.
+                </div>
+
+                <div class="bulk-drop" id="bulkDrop">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                    <div>Drop a .csv or .json file here, or click to choose one</div>
+                    <div class="fname" id="bulkFileName"></div>
+                </div>
+                <input type="file" id="bulkFileInput" accept=".csv,.json,application/json,text/csv" style="display:none;">
+
+                <div class="form-group" style="margin-top:16px;">
+                    <label>...or paste it directly</label>
+                    <textarea id="bulkPasteArea" rows="6" placeholder="Paste CSV rows or a JSON array of questions here"></textarea>
+                </div>
+
+                <div id="bulkReport"></div>
+
+                <div class="modal-actions">
+                    <button class="btn btn-outline" id="bulkCancelBtn">Cancel</button>
+                    <button class="btn btn-primary" id="bulkImportRunBtn"><i class="fa-solid fa-file-import"></i> Import Questions</button>
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+
+        const dropZone = overlay.querySelector('#bulkDrop');
+        const fileInput = overlay.querySelector('#bulkFileInput');
+        const fileNameEl = overlay.querySelector('#bulkFileName');
+        const pasteArea = overlay.querySelector('#bulkPasteArea');
+        const reportEl = overlay.querySelector('#bulkReport');
+        const helpTextEl = overlay.querySelector('#bulkHelpText');
+
+        function setFormat(fmt){
+            bulkFormat = fmt;
+            overlay.querySelector('#bulkFormatCsv').classList.toggle('active', fmt === 'csv');
+            overlay.querySelector('#bulkFormatJson').classList.toggle('active', fmt === 'json');
+            helpTextEl.innerHTML = fmt === 'csv'
+                ? `CSV columns: <code>type</code>, <code>question</code>, <code>choiceA</code>, <code>choiceB</code>, <code>choiceC</code>, <code>choiceD</code>, <code>correct</code>, <code>answer</code>, <code>solution</code>, <code>explanation</code>, <code>subject</code>, <code>level</code>.
+                   Use <code>type=mcq</code> with choices + <code>correct</code> (A/B/C/D, or 1-4), or <code>type=problem</code> with <code>answer</code> (+ optional <code>solution</code>). <code>subject</code>/<code>level</code> columns are optional if you set defaults above.`
+                : `JSON: an array of objects, each with <code>type</code> ("mcq" or "problem"), <code>question</code>, and either <code>choices</code> (array) + <code>correctIndex</code> for MCQ, or <code>answer</code> (+ optional <code>solution</code>) for problem-solving. <code>subject</code>/<code>level</code> per item are optional if you set defaults above.`;
+        }
+        overlay.querySelector('#bulkFormatCsv').addEventListener('click', () => setFormat('csv'));
+        overlay.querySelector('#bulkFormatJson').addEventListener('click', () => setFormat('json'));
+
+        overlay.querySelector('#downloadTemplateLink').addEventListener('click', () => {
+            const template = 'type,question,choiceA,choiceB,choiceC,choiceD,correct,answer,solution,explanation,subject,level\n' +
+                'mcq,"Which financial statement reports a company\'s assets, liabilities, and equity?","Income Statement","Balance Sheet","Statement of Cash Flows","Statement of Retained Earnings",B,,,"The balance sheet shows financial position at a point in time.",FAR,easy\n' +
+                'problem,"A company has assets of 500,000 and liabilities of 200,000. What is total equity?",,,,, ,300000,"Equity = Assets - Liabilities = 500,000 - 200,000",,FAR,easy\n';
+            const blob = new Blob([template], { type:'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'cpa-bulk-import-template.csv'; a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        function handleFile(file){
+            if(!file) return;
+            loadedFileName = file.name;
+            fileNameEl.textContent = file.name;
+            if(/\.json$/i.test(file.name)) setFormat('json');
+            else if(/\.csv$/i.test(file.name)) setFormat('csv');
+            const reader = new FileReader();
+            reader.onload = () => { loadedText = reader.result; pasteArea.value = loadedText; };
+            reader.readAsText(file);
+        }
+        dropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', () => handleFile(fileInput.files[0]));
+        ['dragenter','dragover'].forEach(evt => dropZone.addEventListener(evt, e => { e.preventDefault(); dropZone.classList.add('drag-over'); }));
+        ['dragleave','drop'].forEach(evt => dropZone.addEventListener(evt, e => { e.preventDefault(); dropZone.classList.remove('drag-over'); }));
+        dropZone.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if(f) handleFile(f); });
+
+        overlay.querySelector('#bulkCancelBtn').addEventListener('click', () => overlay.remove());
+        overlay.addEventListener('click', e => { if(e.target === overlay) overlay.remove(); });
+
+        overlay.querySelector('#bulkImportRunBtn').addEventListener('click', () => {
+            const text = pasteArea.value.trim();
+            if(!text){ reportEl.innerHTML = `<div class="bulk-report has-errors">Please choose a file or paste some data first.</div>`; return; }
+
+            const defaults = {
+                subject: overlay.querySelector('#bulkDefaultSubject').value,
+                level: overlay.querySelector('#bulkDefaultLevel').value
+            };
+
+            let rows;
+            try{
+                if(bulkFormat === 'json'){
+                    const parsed = JSON.parse(text);
+                    rows = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.questions) ? parsed.questions : null);
+                    if(!rows) throw new Error('Expected a JSON array of question objects (or {"questions":[...]})');
+                } else {
+                    rows = CPA.parseCSV(text);
+                    if(!rows.length) throw new Error('No data rows found — make sure the first line is a header row.');
+                }
+            }catch(e){
+                reportEl.innerHTML = `<div class="bulk-report has-errors"><b>Couldn't read that data:</b> ${e.message}</div>`;
+                return;
+            }
+
+            const { added, errors } = CPA.bulkAddQuestions(rows, defaults);
+
+            let html = `<div class="bulk-report ${errors.length ? 'has-errors' : ''}">`;
+            html += `<b>${added.length} question${added.length === 1 ? '' : 's'} imported${errors.length ? `, ${errors.length} skipped` : ''}.</b>`;
+            if(errors.length){
+                html += `<ul>` + errors.slice(0, 20).map(e => `<li>Row ${e.row}: ${e.message}</li>`).join('') + `</ul>`;
+                if(errors.length > 20) html += `<div style="margin-top:6px;">...and ${errors.length - 20} more.</div>`;
+            }
+            html += `</div>`;
+            reportEl.innerHTML = html;
+
+            if(added.length){
+                refreshAll();
+            }
+        });
+    }
+
+    function doExport(){
+        const blob = new Blob([CPA.exportData()], { type:'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `cpa-question-bank-${new Date().toISOString().slice(0,10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    function doImport(input){
+        const file = input.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            const mode = confirm('Click OK to MERGE with existing questions, or Cancel to REPLACE the entire bank.') ? 'merge' : 'replace';
+            try{
+                CPA.importData(reader.result, mode);
+                refreshAll();
+                alert('Import complete.');
+            }catch(e){
+                alert('Import failed: ' + e.message);
+            }
+        };
+        reader.readAsText(file);
+        input.value = '';
+    }
+
+    refreshAll();
+}
+</script>
+</body>
+</html>
