@@ -71,7 +71,7 @@ const CPA = (() => {
 
    const supabaseClient = supabase.createClient(
      'https://skosmgyicuwvlybkqdal.supabase.co',
-     'skosmgyicuwvlybkqdal'
+     'sb_publishable_scCLt7VTNyIR-q8QDRPpxQ_4xMubH2Z'
 );
     // ---- Questions ---------------------------------------------------
     function getAllQuestions(){
