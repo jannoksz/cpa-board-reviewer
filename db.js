@@ -14,6 +14,20 @@ const CPA = (() => {
         SETTINGS:  'cpa_v1_settings'
     };
 
+    // ---- Admin passcode (fixed, hardcoded) -----------------------------
+    // The plain passcode is never stored anywhere in this file or in
+    // localStorage — only its SHA-256 hash is kept here. Whatever the
+    // admin types is hashed the same way and compared against this value.
+    // To change the passcode: compute sha256(newPasscode) and replace the
+    // hex string below.
+    const ADMIN_PASSCODE_HASH = '7958658692d41287f68f32f26fd988180684d8777bf9f13634356d21d1e81a6f';
+
+    async function _sha256Hex(text){
+        const enc = new TextEncoder().encode(text);
+        const digest = await crypto.subtle.digest('SHA-256', enc);
+        return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
     // ---- Subject catalogue -----------------------------------------
     // counts = target number of questions an exam pulls for that level.
     const SUBJECTS = [
@@ -410,16 +424,13 @@ const CPA = (() => {
         _write(KEYS.SETTINGS, s);
     }
 
-    // ---- Admin passcode (single shared passcode, remembered on device) ----
-    function hasAdminPasscode(){ return !!(_read(KEYS.SETTINGS, {}).adminPasscode); }
-    function setAdminPasscode(code){
-        const s = _read(KEYS.SETTINGS, {});
-        s.adminPasscode = (code || '').trim();
-        _write(KEYS.SETTINGS, s);
-    }
-    function checkAdminPasscode(code){
-        const s = _read(KEYS.SETTINGS, {});
-        return !!s.adminPasscode && s.adminPasscode === (code || '').trim();
+    // ---- Admin passcode check (fixed passcode, hash comparison only) ----
+    // Returns a Promise<boolean>. The typed value is hashed client-side and
+    // compared to the hardcoded ADMIN_PASSCODE_HASH — the plain passcode
+    // never touches localStorage or any variable beyond this function call.
+    async function checkAdminPasscode(code){
+        const hash = await _sha256Hex((code || '').trim());
+        return hash === ADMIN_PASSCODE_HASH;
     }
     function isAdminAuthed(){ return _read(KEYS.SETTINGS, {}).adminAuthed === true; }
     function setAdminAuthed(val){
@@ -438,6 +449,6 @@ const CPA = (() => {
         exportData, importData, clearAll,
         initDarkMode,
         getReviewerName, setReviewerName, clearReviewerName,
-        hasAdminPasscode, setAdminPasscode, checkAdminPasscode, isAdminAuthed, setAdminAuthed
+        checkAdminPasscode, isAdminAuthed, setAdminAuthed
     };
 })();

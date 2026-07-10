@@ -383,6 +383,20 @@ const CPA = (() => {
         SETTINGS:  'cpa_v1_settings'
     };
 
+    // ---- Admin passcode (fixed, hardcoded) -----------------------------
+    // The plain passcode is never stored anywhere in this file or in
+    // localStorage — only its SHA-256 hash is kept here. Whatever the
+    // admin types is hashed the same way and compared against this value.
+    // To change the passcode: compute sha256(newPasscode) and replace the
+    // hex string below.
+    const ADMIN_PASSCODE_HASH = '7958658692d41287f68f32f26fd988180684d8777bf9f13634356d21d1e81a6f';
+
+    async function _sha256Hex(text){
+        const enc = new TextEncoder().encode(text);
+        const digest = await crypto.subtle.digest('SHA-256', enc);
+        return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
     // ---- Subject catalogue -----------------------------------------
     // counts = target number of questions an exam pulls for that level.
     const SUBJECTS = [
@@ -779,16 +793,13 @@ const CPA = (() => {
         _write(KEYS.SETTINGS, s);
     }
 
-    // ---- Admin passcode (single shared passcode, remembered on device) ----
-    function hasAdminPasscode(){ return !!(_read(KEYS.SETTINGS, {}).adminPasscode); }
-    function setAdminPasscode(code){
-        const s = _read(KEYS.SETTINGS, {});
-        s.adminPasscode = (code || '').trim();
-        _write(KEYS.SETTINGS, s);
-    }
-    function checkAdminPasscode(code){
-        const s = _read(KEYS.SETTINGS, {});
-        return !!s.adminPasscode && s.adminPasscode === (code || '').trim();
+    // ---- Admin passcode check (fixed passcode, hash comparison only) ----
+    // Returns a Promise<boolean>. The typed value is hashed client-side and
+    // compared to the hardcoded ADMIN_PASSCODE_HASH — the plain passcode
+    // never touches localStorage or any variable beyond this function call.
+    async function checkAdminPasscode(code){
+        const hash = await _sha256Hex((code || '').trim());
+        return hash === ADMIN_PASSCODE_HASH;
     }
     function isAdminAuthed(){ return _read(KEYS.SETTINGS, {}).adminAuthed === true; }
     function setAdminAuthed(val){
@@ -807,7 +818,7 @@ const CPA = (() => {
         exportData, importData, clearAll,
         initDarkMode,
         getReviewerName, setReviewerName, clearReviewerName,
-        hasAdminPasscode, setAdminPasscode, checkAdminPasscode, isAdminAuthed, setAdminAuthed
+        checkAdminPasscode, isAdminAuthed, setAdminAuthed
     };
 })();
 
@@ -914,45 +925,40 @@ function renderNameGate(onDone){
 }
 
 function renderAdminGate(onDone){
-    const firstTime = !CPA.hasAdminPasscode();
     app.innerHTML = `
         <div class="auth-shell">
             <div class="auth-card">
                 <div class="seal-lg"><i class="fa-solid fa-lock"></i></div>
-                <h2>${firstTime ? 'Set Up Admin Access' : 'Admin Passcode'}</h2>
-                <p>${firstTime
-                    ? 'Create a shared passcode for the Question Bank. Anyone with this passcode will be able to manage questions.'
-                    : 'Enter the shared admin passcode to manage the Question Bank on this device.'}</p>
-                <input type="password" id="passInput" placeholder="${firstTime ? 'Create a passcode' : 'Passcode'}" autocomplete="off">
-                ${firstTime ? `<input type="password" id="passConfirm" placeholder="Confirm passcode" autocomplete="off">` : ''}
+                <h2>Admin Passcode</h2>
+                <p>Enter the admin passcode to manage the Question Bank.</p>
+                <input type="password" id="passInput" placeholder="Passcode" autocomplete="off">
                 <div class="auth-error" id="passError"></div>
-                <button class="btn btn-primary" id="passSubmitBtn"><i class="fa-solid fa-arrow-right"></i> ${firstTime ? 'Create & Continue' : 'Unlock'}</button>
+                <button class="btn btn-primary" id="passSubmitBtn"><i class="fa-solid fa-arrow-right"></i> Unlock</button>
                 <div class="auth-switch"><a id="backToDashLink">Back to Dashboard</a></div>
             </div>
         </div>`;
     const input = document.getElementById('passInput');
     const err = document.getElementById('passError');
-    const submit = () => {
+    const submitBtn = document.getElementById('passSubmitBtn');
+
+    const submit = async () => {
         const val = input.value;
         if(!val){ err.textContent = 'Please enter a passcode.'; return; }
-        if(firstTime){
-            const confirmVal = document.getElementById('passConfirm').value;
-            if(val.length < 4){ err.textContent = 'Use at least 4 characters.'; return; }
-            if(val !== confirmVal){ err.textContent = "Passcodes don't match."; return; }
-            CPA.setAdminPasscode(val);
-            CPA.setAdminAuthed(true);
-            onDone();
-        } else {
-            if(!CPA.checkAdminPasscode(val)){ err.textContent = 'Incorrect passcode.'; input.value=''; input.focus(); return; }
-            CPA.setAdminAuthed(true);
-            onDone();
+        submitBtn.disabled = true;
+        const ok = await CPA.checkAdminPasscode(val);
+        submitBtn.disabled = false;
+        if(!ok){
+            err.textContent = 'Incorrect passcode.';
+            input.value = '';
+            input.focus();
+            return;
         }
+        CPA.setAdminAuthed(true);
+        onDone();
     };
-    document.getElementById('passSubmitBtn').addEventListener('click', submit);
+    submitBtn.addEventListener('click', submit);
     document.getElementById('backToDashLink').addEventListener('click', () => location.hash = '#/');
-    [input, document.getElementById('passConfirm')].forEach(el => {
-        if(el) el.addEventListener('keydown', e => { if(e.key === 'Enter') submit(); });
-    });
+    input.addEventListener('keydown', e => { if(e.key === 'Enter') submit(); });
     input.focus();
 }
 
