@@ -31,12 +31,12 @@ const CPA = (() => {
     // ---- Subject catalogue -----------------------------------------
     // counts = target number of questions an exam pulls for that level.
     const SUBJECTS = [
-        { id:'FAR',       name:'FAR',       full:'Financial Accounting & Reporting',       icon:'fa-calculator',              counts:{easy:30, intermediate:20, hard:10, mastery:15} },
-        { id:'AFAR',      name:'AFAR',      full:'Advanced Financial Accounting & Reporting', icon:'fa-chart-line',           counts:{easy:30, intermediate:20, hard:10, mastery:15} },
-        { id:'MS',        name:'MS',        full:'Management Services',                    icon:'fa-briefcase',               counts:{easy:30, intermediate:20, hard:10, mastery:15} },
-        { id:'AUDITING',  name:'Auditing',  full:'Auditing Theory & Problems',              icon:'fa-magnifying-glass-chart',  counts:{easy:30, intermediate:20, hard:10, mastery:15} },
-        { id:'TAXATION',  name:'Taxation',  full:'Tax Concepts & Computations',             icon:'fa-receipt',                 counts:{easy:30, intermediate:20, hard:10, mastery:15}, featured:true },
-        { id:'RFBT',      name:'RFBT',      full:'Regulatory Framework & Business Law',     icon:'fa-scale-balanced',          counts:{easy:30, intermediate:20, hard:10, mastery:15} }
+        { id:'FAR',       name:'FAR',       full:'Financial Accounting & Reporting',       icon:'fa-calculator',              counts:{easy:30, intermediate:20, hard:10, mastery:null} },
+        { id:'AFAR',      name:'AFAR',      full:'Advanced Financial Accounting & Reporting', icon:'fa-chart-line',           counts:{easy:30, intermediate:20, hard:10, mastery:null} },
+        { id:'MS',        name:'MS',        full:'Management Services',                    icon:'fa-briefcase',               counts:{easy:30, intermediate:20, hard:10, mastery:null} },
+        { id:'AUDITING',  name:'Auditing',  full:'Auditing Theory & Problems',              icon:'fa-magnifying-glass-chart',  counts:{easy:30, intermediate:20, hard:10, mastery:null} },
+        { id:'TAXATION',  name:'Taxation',  full:'Tax Concepts & Computations',             icon:'fa-receipt',                 counts:{easy:30, intermediate:20, hard:10, mastery:null}, featured:true },
+        { id:'RFBT',      name:'RFBT',      full:'Regulatory Framework & Business Law',     icon:'fa-scale-balanced',          counts:{easy:30, intermediate:20, hard:10, mastery:null} }
     ];
 
     const LEVELS = [
@@ -259,10 +259,14 @@ const CPA = (() => {
     }
     function buildExam(subject, level){
         const subjectDef = SUBJECTS.find(s => s.id === subject);
-        const target = subjectDef ? subjectDef.counts[level] : 10;
+        const configuredTarget = subjectDef ? subjectDef.counts[level] : 10;
         const bank = getQuestions(subject, level);
+        // A null/undefined target (currently just "mastery") means "no cap" —
+        // the exam uses every question that's been added for that tier.
+        const unlimited = configuredTarget === null || configuredTarget === undefined;
+        const target = unlimited ? bank.length : configuredTarget;
         const picked = shuffle(bank).slice(0, target);
-        return { questions: picked, target, available: bank.length };
+        return { questions: picked, target, available: bank.length, unlimited };
     }
 
     // ---- Results / stats ----------------------------------------------
