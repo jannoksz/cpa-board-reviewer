@@ -70,7 +70,7 @@ const CPA = (() => {
     }
 
    const supabaseClient = supabase.createClient(
-     'jannoksz's Project',
+     'https://skosmgyicuwvlybkqdal.supabase.co',
      'skosmgyicuwvlybkqdal'
 );
     // ---- Questions ---------------------------------------------------
