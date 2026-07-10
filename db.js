@@ -69,6 +69,10 @@ const CPA = (() => {
         return 'q_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);
     }
 
+   const supabaseClient = supabase.createClient(
+     'jannoksz's Project',
+     'skosmgyicuwvlybkqdal'
+);
     // ---- Questions ---------------------------------------------------
     function getAllQuestions(){
         return _read(KEYS.QUESTIONS, []);
