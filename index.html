@@ -233,6 +233,13 @@ body.dark .permit{ border-color:rgba(255,255,255,.07); }
 .auth-switch a{ color:var(--navy-700); font-weight:600; cursor:pointer; text-decoration:underline; }
 body.dark .auth-switch a{ color:var(--brass-light); }
 
+/* ---------------- Password field with show/hide toggle ---------------- */
+.password-field{ position:relative; margin-bottom:16px; }
+.password-field input{ margin-bottom:0; padding-right:46px; padding-left:46px; }
+.password-toggle-btn{ position:absolute; top:50%; right:6px; transform:translateY(-50%); width:34px; height:34px; border:none; background:transparent; cursor:pointer; color:var(--ink-faint); font-size:15px; display:flex; align-items:center; justify-content:center; border-radius:8px; transition:.15s; }
+.password-toggle-btn:hover{ color:var(--ink); background:var(--paper-line); }
+.password-toggle-btn:focus-visible{ outline:2px solid var(--navy-700); outline-offset:2px; }
+
 /* ---------------- Exam interface ---------------- */
 .exam-shell{ max-width:820px; margin:0 auto; padding:48px 24px 100px; }
 .exam-progress-bar{ height:6px; background:var(--paper-line); border-radius:10px; overflow:hidden; margin-bottom:10px; }
@@ -251,7 +258,8 @@ body.dark .exam-timer{ color:var(--brass-light); }
 .choice.selected .letter{ background:var(--navy-900); color:#fff; }
 .problem-answer-box textarea, .problem-answer-box input{ width:100%; padding:16px; border-radius:12px; border:1.5px solid var(--paper-line); font-family:var(--font-body); font-size:15px; resize:vertical; background:transparent; color:var(--ink); }
 .problem-answer-box textarea:focus, .problem-answer-box input:focus, .choice:focus-visible{ outline:2px solid var(--navy-700); outline-offset:2px; }
-.exam-nav{ display:flex; justify-content:space-between; margin-top:30px; }
+.exam-nav{ display:flex; justify-content:space-between; align-items:center; margin-top:30px; gap:14px; flex-wrap:wrap; }
+.exam-nav-hint{ font-size:12.5px; color:var(--ink-faint); font-style:italic; }
 
 /* ---------------- Results ---------------- */
 .result-shell{ max-width:640px; margin:60px auto; text-align:center; }
@@ -347,6 +355,7 @@ footer{ text-align:center; padding:40px; color:var(--ink-faint); font-size:13.5p
     .user-chip span{ display:none; }
     .form-row{ flex-direction:column; gap:0; }
 }
+
 </style>
 </head>
 <body>
@@ -370,8 +379,10 @@ footer{ text-align:center; padding:40px; color:var(--ink-faint); font-size:13.5p
 <script>
 /* ============================================================
    CPA Board Reviewer — Data Layer ("Backend")
-   Everything lives in localStorage. This file is the single
-   source of truth for reading/writing questions & results, so
+   Questions and results now live in Supabase (shared, cross-device),
+   with a small local-only settings key for UI prefs like dark mode.
+   This file is the single source of truth for reading/writing
+   questions & results, so
    every page (admin, subject, exam, dashboard) talks to the
    SAME api instead of touching localStorage directly.
    ============================================================ */
@@ -975,6 +986,36 @@ window.addEventListener('DOMContentLoaded', async () => {
 
 
 /* ================= AUTH GATE (sign up / log in, email + password) ================= */
+
+// Turns Supabase's raw error/edge-case messages into copy a reviewer can
+// actually act on, instead of surfacing internal auth error strings.
+function friendlyAuthError(error){
+    const msg = (error && error.message) || '';
+    const lower = msg.toLowerCase();
+    if(lower.includes('already registered') || lower.includes('already exists') || lower.includes('user already registered')){
+        return 'An account with this email already exists. Try logging in instead.';
+    }
+    if(lower.includes('invalid login credentials') || lower.includes('invalid email or password')){
+        return 'Incorrect email or password. Please double-check and try again.';
+    }
+    if(lower.includes('email not confirmed')){
+        return 'Please confirm your email address before logging in — check your inbox for the confirmation link.';
+    }
+    if(lower.includes('password should be at least') || lower.includes('password is too short')){
+        return 'Password must be at least 6 characters long.';
+    }
+    if(lower.includes('unable to validate email') || lower.includes('invalid email')){
+        return 'That doesn\'t look like a valid email address. Please double-check it.';
+    }
+    if(lower.includes('rate limit')){
+        return 'Too many attempts in a short time. Please wait a moment and try again.';
+    }
+    if(lower.includes('network') || lower.includes('fetch')){
+        return 'Network error — please check your connection and try again.';
+    }
+    return msg || 'Something went wrong. Please try again.';
+}
+
 function renderAuthGate(onDone){
     let mode = 'login'; // 'login' | 'signup'
 
@@ -986,7 +1027,12 @@ function renderAuthGate(onDone){
                     <h2>${mode === 'login' ? 'Welcome Back' : 'Create Your Account'}</h2>
                     <p>${mode === 'login' ? 'Log in to access your question bank and saved progress.' : 'Sign up to start tracking your CPALE review progress.'}</p>
                     <input type="email" id="authEmail" placeholder="Email" autocomplete="email">
-                    <input type="password" id="authPassword" placeholder="Password" autocomplete="${mode === 'login' ? 'current-password' : 'new-password'}" style="margin-top:10px;">
+                    <div class="password-field" style="margin-top:10px;">
+                        <input type="password" id="authPassword" placeholder="Password" autocomplete="${mode === 'login' ? 'current-password' : 'new-password'}">
+                        <button type="button" class="password-toggle-btn" id="togglePasswordBtn" tabindex="-1" aria-label="Show password">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
                     <div class="auth-error" id="authError"></div>
                     <button class="btn btn-primary" id="authSubmitBtn" style="margin-top:14px;">
                         <i class="fa-solid fa-arrow-right"></i> ${mode === 'login' ? 'Log In' : 'Sign Up'}
@@ -1003,17 +1049,39 @@ function renderAuthGate(onDone){
         const passInput = document.getElementById('authPassword');
         const err = document.getElementById('authError');
         const submitBtn = document.getElementById('authSubmitBtn');
+        const toggleBtn = document.getElementById('togglePasswordBtn');
+
+        // Password show/hide toggle
+        toggleBtn.addEventListener('click', () => {
+            const willShow = passInput.type === 'password';
+            passInput.type = willShow ? 'text' : 'password';
+            toggleBtn.querySelector('i').className = willShow ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+            toggleBtn.setAttribute('aria-label', willShow ? 'Hide password' : 'Show password');
+            passInput.focus();
+        });
 
         const submit = async () => {
             const email = emailInput.value.trim();
             const password = passInput.value;
-            if(!email || !password){ err.textContent = 'Please enter both email and password.'; return; }
-            if(password.length < 6){ err.textContent = 'Password must be at least 6 characters.'; return; }
+            if(!email || !password){ err.style.color = ''; err.textContent = 'Please enter both email and password.'; return; }
+            if(password.length < 6){ err.style.color = ''; err.textContent = 'Password must be at least 6 characters.'; return; }
             submitBtn.disabled = true;
             err.textContent = '';
             try{
                 if(mode === 'signup'){
-                    await CPA.signUp(email, password);
+                    const data = await CPA.signUp(email, password);
+                    // Supabase quietly "succeeds" (no error) when signing up an
+                    // email that's already registered, returning a user object
+                    // with an empty identities array instead of throwing. Catch
+                    // that case here so we don't tell them to "check their email"
+                    // for an account that already exists.
+                    const alreadyExists = data && data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0;
+                    if(alreadyExists){
+                        submitBtn.disabled = false;
+                        err.style.color = '';
+                        err.textContent = 'An account with this email already exists. Try logging in instead.';
+                        return;
+                    }
                     // If email confirmation is required, signUp won't return an
                     // active session — send them to log in once confirmed.
                     err.style.color = 'var(--good)';
@@ -1030,7 +1098,7 @@ function renderAuthGate(onDone){
             }catch(e){
                 submitBtn.disabled = false;
                 err.style.color = '';
-                err.textContent = e.message || 'Something went wrong. Please try again.';
+                err.textContent = friendlyAuthError(e);
             }
         };
         submitBtn.addEventListener('click', submit);
@@ -1336,10 +1404,18 @@ function renderExam(subjectId, levelId){
 
     renderQuestion();
 
+    // A question counts as "answered" once there's a selected choice (mcq)
+    // or non-empty text (problem) — used to gate the Next/Submit button.
+    function isAnswered(q, given){
+        if(q.type === 'problem') return typeof given === 'string' && given.trim().length > 0;
+        return given !== null && given !== undefined;
+    }
+
     function renderQuestion(){
         const q = questions[current];
         const pct = Math.round((current / questions.length) * 100);
         const answered = responses[current];
+        const answeredNow = isAnswered(q, answered);
 
         let bodyHtml = '';
         if(q.type === 'problem'){
@@ -1366,15 +1442,25 @@ function renderExam(subjectId, levelId){
                 </div>
                 <div class="exam-nav">
                     <button class="btn btn-outline" id="prevBtn" ${current === 0 ? 'disabled' : ''}><i class="fa-solid fa-arrow-left"></i> Previous</button>
-                    <button class="btn btn-primary" id="nextBtn">${current === questions.length - 1 ? 'Submit Exam' : 'Next'} <i class="fa-solid fa-arrow-right"></i></button>
+                    <span class="exam-nav-hint" id="answerHint" style="${answeredNow ? 'visibility:hidden;' : ''}">Answer to continue</span>
+                    <button class="btn btn-primary" id="nextBtn" ${answeredNow ? '' : 'disabled'}>${current === questions.length - 1 ? 'Submit Exam' : 'Next'} <i class="fa-solid fa-arrow-right"></i></button>
                 </div>
             </div>`;
 
         if(q.type === 'problem'){
-            document.getElementById('problemInput').addEventListener('input', e => { responses[current] = e.target.value; });
+            const input = document.getElementById('problemInput');
+            const nextBtn = document.getElementById('nextBtn');
+            const hint = document.getElementById('answerHint');
+            input.addEventListener('input', e => {
+                responses[current] = e.target.value;
+                const nowAnswered = isAnswered(q, e.target.value);
+                nextBtn.disabled = !nowAnswered;
+                if(hint) hint.style.visibility = nowAnswered ? 'hidden' : 'visible';
+            });
         }
         document.getElementById('prevBtn').addEventListener('click', () => { current = Math.max(0, current - 1); renderQuestion(); });
         document.getElementById('nextBtn').addEventListener('click', () => {
+            if(!isAnswered(q, responses[current])) return; // guard: ignore stray clicks/enter while disabled
             if(current === questions.length - 1) submitExam();
             else { current++; renderQuestion(); }
         });
@@ -1893,6 +1979,7 @@ function renderAdmin(presetSubject, presetLevel){
 
     refreshAll();
 }
+
 </script>
 </body>
 </html>
