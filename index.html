@@ -379,24 +379,53 @@ footer{ text-align:center; padding:40px; color:var(--ink-faint); font-size:13.5p
 const CPA = (() => {
 
     const KEYS = {
-        QUESTIONS: 'cpa_v1_questions',
-        RESULTS:   'cpa_v1_results',
-        SETTINGS:  'cpa_v1_settings'
+        SETTINGS: 'cpa_v1_settings' // local UI prefs only (dark mode) — everything else lives in Supabase now
     };
 
-    // ---- Admin passcode (fixed, hardcoded) -----------------------------
-    // The plain passcode is never stored anywhere in this file or in
-    // localStorage — only its SHA-256 hash is kept here. Whatever the
-    // admin types is hashed the same way and compared against this value.
-    // To change the passcode: compute sha256(newPasscode) and replace the
-    // hex string below.
-    const ADMIN_PASSCODE_HASH = '7958658692d41287f68f32f26fd988180684d8777bf9f13634356d21d1e81a6f';
+    // ---- Supabase client + auth ----------------------------------------
+    const supabaseClient = supabase.createClient(
+        'https://skosmgyicuwvlybkqdal.supabase.co',
+        'sb_publishable_scCLt7VTNyIR-q8QDRPpxQ_4xMubH2Z'
+    );
 
-    async function _sha256Hex(text){
-        const enc = new TextEncoder().encode(text);
-        const digest = await crypto.subtle.digest('SHA-256', enc);
-        return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+    let _user = null;      // { id, email } once logged in
+    let _profile = null;   // { id, display_name, is_admin }
+
+    async function signUp(email, password){
+        const { data, error } = await supabaseClient.auth.signUp({ email, password });
+        if(error) throw error;
+        return data;
     }
+    async function signIn(email, password){
+        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if(error) throw error;
+        _user = data.user;
+        await _loadProfile();
+        return data;
+    }
+    async function signOut(){
+        await supabaseClient.auth.signOut();
+        _user = null;
+        _profile = null;
+    }
+    async function _loadProfile(){
+        if(!_user){ _profile = null; return; }
+        const { data, error } = await supabaseClient.from('profiles').select('*').eq('id', _user.id).single();
+        if(error){ console.error('Failed to load profile', error); _profile = null; return; }
+        _profile = data;
+    }
+    // Call once on page load: restores an existing session (if any) and
+    // pre-loads the question bank + this user's results.
+    async function initSession(){
+        const { data } = await supabaseClient.auth.getSession();
+        _user = data.session ? data.session.user : null;
+        if(_user) await _loadProfile();
+        await loadQuestions();
+        if(_user) await loadResults();
+    }
+    function getUser(){ return _user; }
+    function getDisplayName(){ return _profile && _profile.display_name ? _profile.display_name : (_user ? _user.email : ''); }
+    function isAdmin(){ return !!(_profile && _profile.is_admin); }
 
     // ---- Subject catalogue -----------------------------------------
     // counts = target number of questions an exam pulls for that level.
@@ -440,8 +469,34 @@ const CPA = (() => {
     }
 
     // ---- Questions ---------------------------------------------------
+    // Kept in an in-memory cache so the many render functions elsewhere in
+    // the app can keep reading questions synchronously. The cache is loaded
+    // from Supabase on startup (loadQuestions) and refreshed after any write.
+    let _questionsCache = [];
+
+    function _rowToQuestion(row){
+        return {
+            id: row.id,
+            subject: row.subject,
+            level: row.level,
+            type: row.type,
+            question: row.question,
+            choices: row.choices || [],
+            correctIndex: row.correct_index,
+            answer: row.answer || '',
+            solution: row.solution || '',
+            explanation: row.explanation || '',
+            createdAt: row.created_at,
+            updatedAt: row.updated_at
+        };
+    }
+    async function loadQuestions(){
+        const { data, error } = await supabaseClient.from('questions').select('*').order('created_at', { ascending:true });
+        if(error){ console.error('Failed to load questions', error); _questionsCache = []; return; }
+        _questionsCache = data.map(_rowToQuestion);
+    }
     function getAllQuestions(){
-        return _read(KEYS.QUESTIONS, []);
+        return _questionsCache;
     }
     function getQuestions(subject, level){
         return getAllQuestions().filter(q => q.subject === subject && (!level || q.level === level));
@@ -449,35 +504,41 @@ const CPA = (() => {
     function getQuestion(id){
         return getAllQuestions().find(q => q.id === id) || null;
     }
-    function addQuestion(q){
-        const all = getAllQuestions();
-        const now = new Date().toISOString();
-        const record = Object.assign({
-            id:_uid(),
-            type:'mcq',
-            choices:[],
-            correctIndex:0,
-            answer:'',
-            solution:'',
-            explanation:'',
-            createdAt:now,
-            updatedAt:now
-        }, q);
-        all.push(record);
-        _write(KEYS.QUESTIONS, all);
+    async function addQuestion(q){
+        const row = {
+            subject: q.subject, level: q.level, type: q.type || 'mcq',
+            question: q.question, choices: q.choices || [], correct_index: q.correctIndex,
+            answer: q.answer || '', solution: q.solution || '', explanation: q.explanation || ''
+        };
+        const { data, error } = await supabaseClient.from('questions').insert(row).select().single();
+        if(error) throw error;
+        const record = _rowToQuestion(data);
+        _questionsCache.push(record);
         return record;
     }
-    function updateQuestion(id, patch){
-        const all = getAllQuestions();
-        const idx = all.findIndex(q => q.id === id);
-        if(idx === -1) return null;
-        all[idx] = Object.assign({}, all[idx], patch, { updatedAt:new Date().toISOString() });
-        _write(KEYS.QUESTIONS, all);
-        return all[idx];
+    async function updateQuestion(id, patch){
+        const row = {};
+        if(patch.subject !== undefined) row.subject = patch.subject;
+        if(patch.level !== undefined) row.level = patch.level;
+        if(patch.type !== undefined) row.type = patch.type;
+        if(patch.question !== undefined) row.question = patch.question;
+        if(patch.choices !== undefined) row.choices = patch.choices;
+        if(patch.correctIndex !== undefined) row.correct_index = patch.correctIndex;
+        if(patch.answer !== undefined) row.answer = patch.answer;
+        if(patch.solution !== undefined) row.solution = patch.solution;
+        if(patch.explanation !== undefined) row.explanation = patch.explanation;
+        row.updated_at = new Date().toISOString();
+        const { data, error } = await supabaseClient.from('questions').update(row).eq('id', id).select().single();
+        if(error) throw error;
+        const record = _rowToQuestion(data);
+        const idx = _questionsCache.findIndex(x => x.id === id);
+        if(idx !== -1) _questionsCache[idx] = record;
+        return record;
     }
-    function deleteQuestion(id){
-        const all = getAllQuestions().filter(q => q.id !== id);
-        _write(KEYS.QUESTIONS, all);
+    async function deleteQuestion(id){
+        const { error } = await supabaseClient.from('questions').delete().eq('id', id);
+        if(error) throw error;
+        _questionsCache = _questionsCache.filter(q => q.id !== id);
     }
     function getQuestionCounts(subject){
         const qs = getAllQuestions().filter(q => q.subject === subject);
@@ -494,20 +555,21 @@ const CPA = (() => {
     // (or a `choices` array), correct (letter A-D, 1-based or 0-based number),
     // answer, solution, explanation, subject, level.
     // `defaults.subject` / `defaults.level` are used for any row that omits them.
-    function bulkAddQuestions(rows, defaults){
+    async function bulkAddQuestions(rows, defaults){
         defaults = defaults || {};
         const added = [];
         const errors = [];
 
-        rows.forEach((raw, i) => {
+        for(let i = 0; i < rows.length; i++){
+            const raw = rows[i];
             const rowNum = i + 2; // +2 assumes a header row at line 1 (CSV-friendly numbering)
             try{
                 const record = _normalizeBulkRow(raw, defaults);
-                added.push(addQuestion(record));
+                added.push(await addQuestion(record));
             }catch(e){
                 errors.push({ row: rowNum, message: e.message, raw });
             }
-        });
+        }
 
         return { added, errors };
     }
@@ -640,35 +702,62 @@ const CPA = (() => {
     }
 
     // ---- Results / stats ----------------------------------------------
-    function getAllResults(){
-        return _read(KEYS.RESULTS, []);
+    // The DB (via RLS) only ever returns the logged-in user's own results,
+    // so there's no need to filter by "reviewer" anymore — the cache IS
+    // this user's results.
+    let _resultsCache = [];
+
+    function _rowToResult(row){
+        return {
+            id: row.id,
+            subject: row.subject,
+            level: row.level,
+            score: row.score,
+            total: row.total,
+            percentage: row.percentage,
+            durationSec: row.duration_sec,
+            date: row.date
+        };
     }
-    function saveResult(result){
-        const all = getAllResults();
-        const record = Object.assign({
-            id:_uid(),
-            date:new Date().toISOString(),
-            reviewer:getReviewerName()
-        }, result);
-        all.push(record);
-        _write(KEYS.RESULTS, all);
+    async function loadResults(){
+        if(!_user){ _resultsCache = []; return; }
+        const { data, error } = await supabaseClient.from('results').select('*').eq('user_id', _user.id);
+        if(error){ console.error('Failed to load results', error); _resultsCache = []; return; }
+        _resultsCache = data.map(_rowToResult);
+    }
+    function getAllResults(){
+        return _resultsCache;
+    }
+    async function saveResult(result){
+        if(!_user) throw new Error('You must be signed in to save a result.');
+        const row = {
+            user_id: _user.id,
+            subject: result.subject,
+            level: result.level,
+            score: result.score,
+            total: result.total,
+            percentage: result.percentage,
+            duration_sec: result.durationSec
+        };
+        const { data, error } = await supabaseClient.from('results').insert(row).select().single();
+        if(error) throw error;
+        const record = _rowToResult(data);
+        _resultsCache.push(record);
         return record;
     }
-    function getResults(subject, level, reviewer){
+    function getResults(subject, level){
         return getAllResults().filter(r =>
             (!subject || r.subject === subject) &&
-            (!level || r.level === level) &&
-            (reviewer === undefined || (r.reviewer || '') === reviewer)
+            (!level || r.level === level)
         );
     }
-    function getBestScore(subject, level, reviewer){
-        const rs = getResults(subject, level, reviewer === undefined ? getReviewerName() : reviewer);
+    function getBestScore(subject, level){
+        const rs = getResults(subject, level);
         if(!rs.length) return null;
         return Math.max(...rs.map(r => r.percentage));
     }
-    function getStats(reviewer){
-        const name = reviewer === undefined ? getReviewerName() : reviewer;
-        const all = getAllResults().filter(r => (r.reviewer || '') === name);
+    function getStats(){
+        const all = getAllResults();
         const examsTaken = all.length;
         const avg = examsTaken ? Math.round(all.reduce((a,r) => a + r.percentage, 0) / examsTaken) : 0;
         const highest = examsTaken ? Math.max(...all.map(r => r.percentage)) : 0;
@@ -676,14 +765,13 @@ const CPA = (() => {
     }
 
     // ---- Detailed progress helpers -------------------------------------
-    function _reviewerResults(reviewer){
-        const name = reviewer === undefined ? getReviewerName() : reviewer;
-        return getAllResults().filter(r => (r.reviewer || '') === name);
+    function _reviewerResults(){
+        return getAllResults();
     }
     // Best score + attempt count per subject/level, plus a per-subject average
     // across whichever tiers have been attempted at least once.
-    function getSubjectBreakdown(reviewer){
-        const results = _reviewerResults(reviewer);
+    function getSubjectBreakdown(){
+        const results = _reviewerResults();
         return SUBJECTS.map(s => {
             const levels = {};
             LEVELS.forEach(l => {
@@ -700,16 +788,16 @@ const CPA = (() => {
         });
     }
     // Most recent exam attempts, newest first.
-    function getRecentResults(limit, reviewer){
-        return _reviewerResults(reviewer)
+    function getRecentResults(limit){
+        return _reviewerResults()
             .slice()
             .sort((a, b) => new Date(b.date) - new Date(a.date))
             .slice(0, limit || 10);
     }
     // Subject/level tiers whose best score is still below the passing mark.
-    function getWeakAreas(threshold, reviewer){
+    function getWeakAreas(threshold){
         threshold = threshold === undefined ? 75 : threshold;
-        const results = _reviewerResults(reviewer);
+        const results = _reviewerResults();
         const weak = [];
         SUBJECTS.forEach(s => {
             LEVELS.forEach(l => {
@@ -722,18 +810,19 @@ const CPA = (() => {
         return weak.sort((a, b) => a.best - b.best);
     }
     // All attempts in chronological order, for plotting a trend line.
-    function getTrendData(reviewer){
-        return _reviewerResults(reviewer).slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+    function getTrendData(){
+        return _reviewerResults().slice().sort((a, b) => new Date(a.date) - new Date(b.date));
     }
-    // Clears only this reviewer's saved exam results/stats. Leaves the
-    // question bank and every other reviewer's results untouched.
-    function resetProgress(reviewer){
-        const name = reviewer === undefined ? getReviewerName() : reviewer;
-        const remaining = getAllResults().filter(r => (r.reviewer || '') !== name);
-        _write(KEYS.RESULTS, remaining);
+    // Clears this user's saved exam results/stats in Supabase. Leaves the
+    // question bank and every other user's results untouched.
+    async function resetProgress(){
+        if(!_user) return;
+        const { error } = await supabaseClient.from('results').delete().eq('user_id', _user.id);
+        if(error) throw error;
+        _resultsCache = [];
     }
 
-    // ---- Import / export (backup, since this is local-only storage) --
+    // ---- Import / export (backup) --------------------------------------
     function exportData(){
         return JSON.stringify({
             questions:getAllQuestions(),
@@ -742,29 +831,27 @@ const CPA = (() => {
             version:1
         }, null, 2);
     }
-    function importData(json, mode){
+    // Import a JSON backup. Questions get inserted into Supabase (admin-only,
+    // enforced by RLS); "replace" first deletes every existing question.
+    async function importData(json, mode){
         let parsed;
         try{ parsed = JSON.parse(json); } catch(e){ throw new Error('That file isn\'t valid JSON.'); }
         const incomingQ = Array.isArray(parsed.questions) ? parsed.questions : [];
-        const incomingR = Array.isArray(parsed.results) ? parsed.results : [];
+
         if(mode === 'replace'){
-            _write(KEYS.QUESTIONS, incomingQ);
-            _write(KEYS.RESULTS, incomingR);
-        } else {
-            const existingQ = getAllQuestions();
-            const existingIds = new Set(existingQ.map(q => q.id));
-            const merged = existingQ.concat(incomingQ.filter(q => !existingIds.has(q.id)));
-            _write(KEYS.QUESTIONS, merged);
-            const existingR = getAllResults();
-            _write(KEYS.RESULTS, existingR.concat(incomingR));
+            const existing = getAllQuestions();
+            for(const q of existing) await deleteQuestion(q.id);
         }
-    }
-    function clearAll(){
-        localStorage.removeItem(KEYS.QUESTIONS);
-        localStorage.removeItem(KEYS.RESULTS);
+        const existingIds = new Set(mode === 'replace' ? [] : getAllQuestions().map(q => q.id));
+        for(const q of incomingQ){
+            if(existingIds.has(q.id)) continue; // skip duplicates on merge
+            await addQuestion(q);
+        }
+        // Note: results are per-user and tied to your own account, so
+        // imported results aren't restored here — only the question bank is.
     }
 
-    // ---- Dark mode (shared across pages) ------------------------------
+    // ---- Dark mode (shared across pages, still just a local UI pref) --
     function getDarkMode(){ return _read(KEYS.SETTINGS, {}).dark === true; }
     function setDarkMode(val){
         const s = _read(KEYS.SETTINGS, {});
@@ -785,34 +872,6 @@ const CPA = (() => {
         });
     }
 
-    // ---- Reviewer identity (name only, remembered on this device) -----
-    function getReviewerName(){ return (_read(KEYS.SETTINGS, {}).reviewerName || '').trim(); }
-    function setReviewerName(name){
-        const s = _read(KEYS.SETTINGS, {});
-        s.reviewerName = (name || '').trim();
-        _write(KEYS.SETTINGS, s);
-    }
-    function clearReviewerName(){
-        const s = _read(KEYS.SETTINGS, {});
-        delete s.reviewerName;
-        _write(KEYS.SETTINGS, s);
-    }
-
-    // ---- Admin passcode check (fixed passcode, hash comparison only) ----
-    // Returns a Promise<boolean>. The typed value is hashed client-side and
-    // compared to the hardcoded ADMIN_PASSCODE_HASH — the plain passcode
-    // never touches localStorage or any variable beyond this function call.
-    async function checkAdminPasscode(code){
-        const hash = await _sha256Hex((code || '').trim());
-        return hash === ADMIN_PASSCODE_HASH;
-    }
-    function isAdminAuthed(){ return _read(KEYS.SETTINGS, {}).adminAuthed === true; }
-    function setAdminAuthed(val){
-        const s = _read(KEYS.SETTINGS, {});
-        s.adminAuthed = val;
-        _write(KEYS.SETTINGS, s);
-    }
-
     return {
         SUBJECTS, LEVELS,
         getAllQuestions, getQuestions, getQuestion, addQuestion, updateQuestion, deleteQuestion, getQuestionCounts,
@@ -820,10 +879,10 @@ const CPA = (() => {
         buildExam,
         getAllResults, saveResult, getResults, getBestScore, getStats,
         getSubjectBreakdown, getRecentResults, getWeakAreas, getTrendData, resetProgress,
-        exportData, importData, clearAll,
+        exportData, importData,
         initDarkMode,
-        getReviewerName, setReviewerName, clearReviewerName,
-        checkAdminPasscode, isAdminAuthed, setAdminAuthed
+        initSession, signUp, signIn, signOut, getUser, getDisplayName, isAdmin,
+        loadQuestions, loadResults
     };
 })();
 
@@ -840,7 +899,6 @@ const CPA = (() => {
    ============================================================ */
 
 CPA.initDarkMode();
-renderUserChip();
 
 const app = document.getElementById('app');
 let activeCleanup = null;
@@ -848,19 +906,21 @@ function setCleanup(fn){ activeCleanup = fn; }
 
 function renderUserChip(){
     const chip = document.getElementById('userChip');
-    const name = CPA.getReviewerName();
-    if(!name){ chip.style.display = 'none'; return; }
+    const user = CPA.getUser();
+    if(!user){ chip.style.display = 'none'; return; }
+    const name = CPA.getDisplayName();
     chip.style.display = 'flex';
     chip.innerHTML = `<span class="avatar">${name.trim().charAt(0).toUpperCase()}</span><span>${name}</span>`;
-    chip.onclick = () => {
-        if(confirm(`Switch reviewer? You're currently signed in as "${name}". This won't delete any saved progress.`)){
-            CPA.clearReviewerName();
+    chip.onclick = async () => {
+        if(confirm(`Sign out of "${name}"? Your saved progress stays safely in your account for next time.`)){
+            await CPA.signOut();
+            location.hash = '#/';
             router();
         }
     };
 }
 
-function router(){
+async function router(){
     if(activeCleanup){ activeCleanup(); activeCleanup = null; }
     renderUserChip();
 
@@ -871,15 +931,23 @@ function router(){
 
     const isAdminRoute = parts[0] === 'admin';
 
-    // ---- Reviewer name gate (applies to every route) ----
-    if(!CPA.getReviewerName()){
-        renderNameGate(() => router());
+    // ---- Login gate (applies to every route) ----
+    if(!CPA.getUser()){
+        renderAuthGate(() => router());
         return;
     }
 
-    // ---- Admin passcode gate (applies only to /admin) ----
-    if(isAdminRoute && !CPA.isAdminAuthed()){
-        renderAdminGate(() => router());
+    // ---- Admin gate (applies only to /admin) — based on the profiles.is_admin flag ----
+    if(isAdminRoute && !CPA.isAdmin()){
+        app.innerHTML = `
+            <div class="auth-shell">
+                <div class="auth-card">
+                    <div class="seal-lg"><i class="fa-solid fa-lock"></i></div>
+                    <h2>Admins Only</h2>
+                    <p>Your account doesn't have admin access to the Question Bank.</p>
+                    <button class="btn btn-primary" onclick="location.hash='#/'"><i class="fa-solid fa-arrow-left"></i> Back to Dashboard</button>
+                </div>
+            </div>`;
         return;
     }
 
@@ -900,71 +968,77 @@ function router(){
     window.scrollTo(0, 0);
 }
 window.addEventListener('hashchange', router);
-window.addEventListener('DOMContentLoaded', router);
+window.addEventListener('DOMContentLoaded', async () => {
+    await CPA.initSession();     // restore session (if any) + load question bank
+    await router();
+});
 
 
-/* ================= AUTH GATES ================= */
-function renderNameGate(onDone){
-    app.innerHTML = `
-        <div class="auth-shell">
-            <div class="auth-card">
-                <div class="seal-lg"><i class="fa-solid fa-scale-balanced"></i></div>
-                <h2>Welcome</h2>
-                <p>Enter your name so your scores and progress are kept under your own record. You'll stay signed in on this device.</p>
-                <input type="text" id="nameInput" placeholder="Your name" autocomplete="name">
-                <div class="auth-error" id="nameError"></div>
-                <button class="btn btn-primary" id="nameSubmitBtn"><i class="fa-solid fa-arrow-right"></i> Continue</button>
-            </div>
-        </div>`;
-    const input = document.getElementById('nameInput');
-    const err = document.getElementById('nameError');
-    const submit = () => {
-        const val = input.value.trim();
-        if(!val){ err.textContent = 'Please enter a name to continue.'; return; }
-        CPA.setReviewerName(val);
-        onDone();
-    };
-    document.getElementById('nameSubmitBtn').addEventListener('click', submit);
-    input.addEventListener('keydown', e => { if(e.key === 'Enter') submit(); });
-    input.focus();
-}
+/* ================= AUTH GATE (sign up / log in, email + password) ================= */
+function renderAuthGate(onDone){
+    let mode = 'login'; // 'login' | 'signup'
 
-function renderAdminGate(onDone){
-    app.innerHTML = `
-        <div class="auth-shell">
-            <div class="auth-card">
-                <div class="seal-lg"><i class="fa-solid fa-lock"></i></div>
-                <h2>Admin Passcode</h2>
-                <p>Enter the admin passcode to manage the Question Bank.</p>
-                <input type="password" id="passInput" placeholder="Passcode" autocomplete="off">
-                <div class="auth-error" id="passError"></div>
-                <button class="btn btn-primary" id="passSubmitBtn"><i class="fa-solid fa-arrow-right"></i> Unlock</button>
-                <div class="auth-switch"><a id="backToDashLink">Back to Dashboard</a></div>
-            </div>
-        </div>`;
-    const input = document.getElementById('passInput');
-    const err = document.getElementById('passError');
-    const submitBtn = document.getElementById('passSubmitBtn');
+    function draw(){
+        app.innerHTML = `
+            <div class="auth-shell">
+                <div class="auth-card">
+                    <div class="seal-lg"><i class="fa-solid fa-scale-balanced"></i></div>
+                    <h2>${mode === 'login' ? 'Welcome Back' : 'Create Your Account'}</h2>
+                    <p>${mode === 'login' ? 'Log in to access your question bank and saved progress.' : 'Sign up to start tracking your CPALE review progress.'}</p>
+                    <input type="email" id="authEmail" placeholder="Email" autocomplete="email">
+                    <input type="password" id="authPassword" placeholder="Password" autocomplete="${mode === 'login' ? 'current-password' : 'new-password'}" style="margin-top:10px;">
+                    <div class="auth-error" id="authError"></div>
+                    <button class="btn btn-primary" id="authSubmitBtn" style="margin-top:14px;">
+                        <i class="fa-solid fa-arrow-right"></i> ${mode === 'login' ? 'Log In' : 'Sign Up'}
+                    </button>
+                    <div class="auth-switch">
+                        ${mode === 'login'
+                            ? `Don't have an account? <a id="switchModeLink">Sign up</a>`
+                            : `Already have an account? <a id="switchModeLink">Log in</a>`}
+                    </div>
+                </div>
+            </div>`;
 
-    const submit = async () => {
-        const val = input.value;
-        if(!val){ err.textContent = 'Please enter a passcode.'; return; }
-        submitBtn.disabled = true;
-        const ok = await CPA.checkAdminPasscode(val);
-        submitBtn.disabled = false;
-        if(!ok){
-            err.textContent = 'Incorrect passcode.';
-            input.value = '';
-            input.focus();
-            return;
-        }
-        CPA.setAdminAuthed(true);
-        onDone();
-    };
-    submitBtn.addEventListener('click', submit);
-    document.getElementById('backToDashLink').addEventListener('click', () => location.hash = '#/');
-    input.addEventListener('keydown', e => { if(e.key === 'Enter') submit(); });
-    input.focus();
+        const emailInput = document.getElementById('authEmail');
+        const passInput = document.getElementById('authPassword');
+        const err = document.getElementById('authError');
+        const submitBtn = document.getElementById('authSubmitBtn');
+
+        const submit = async () => {
+            const email = emailInput.value.trim();
+            const password = passInput.value;
+            if(!email || !password){ err.textContent = 'Please enter both email and password.'; return; }
+            if(password.length < 6){ err.textContent = 'Password must be at least 6 characters.'; return; }
+            submitBtn.disabled = true;
+            err.textContent = '';
+            try{
+                if(mode === 'signup'){
+                    await CPA.signUp(email, password);
+                    // If email confirmation is required, signUp won't return an
+                    // active session — send them to log in once confirmed.
+                    err.style.color = 'var(--good)';
+                    err.textContent = 'Account created! Check your email to confirm, then log in.';
+                    mode = 'login';
+                    submitBtn.disabled = false;
+                    setTimeout(draw, 1400);
+                    return;
+                } else {
+                    await CPA.signIn(email, password);
+                    await CPA.loadResults();
+                    onDone();
+                }
+            }catch(e){
+                submitBtn.disabled = false;
+                err.style.color = '';
+                err.textContent = e.message || 'Something went wrong. Please try again.';
+            }
+        };
+        submitBtn.addEventListener('click', submit);
+        passInput.addEventListener('keydown', e => { if(e.key === 'Enter') submit(); });
+        document.getElementById('switchModeLink').addEventListener('click', () => { mode = mode === 'login' ? 'signup' : 'login'; draw(); });
+        emailInput.focus();
+    }
+    draw();
 }
 
 
@@ -993,7 +1067,7 @@ function renderDashboard(){
         <section class="section">
             <div class="container">
                 <div class="section-head">
-                    <div><h2>Your progress</h2><p>Pulled from every exam ${CPA.getReviewerName()} has completed on this device.</p></div>
+                    <div><h2>Your progress</h2><p>Pulled from every exam ${CPA.getDisplayName()} has completed, synced to your account.</p></div>
                     <button class="btn btn-outline btn-sm" id="resetProgressBtn"><i class="fa-solid fa-rotate-left"></i> Reset My Progress</button>
                 </div>
                 <div class="stats-grid" style="margin-bottom:28px;">
@@ -1042,10 +1116,10 @@ function renderDashboard(){
         document.getElementById('subjectsSection').scrollIntoView({ behavior:'smooth' });
     });
 
-    document.getElementById('resetProgressBtn').addEventListener('click', () => {
-        const name = CPA.getReviewerName();
+    document.getElementById('resetProgressBtn').addEventListener('click', async () => {
+        const name = CPA.getDisplayName();
         if(confirm(`Reset all saved exam progress for "${name}"? This clears your scores and history but keeps the question bank intact. This can't be undone.`)){
-            CPA.resetProgress();
+            await CPA.resetProgress();
             renderDashboard();
         }
     });
@@ -1308,7 +1382,7 @@ function renderExam(subjectId, levelId){
 
     window.examSelectChoice = function(i){ responses[current] = i; renderQuestion(); };
 
-    function submitExam(){
+    async function submitExam(){
         clearInterval(timerInterval);
         const durationSec = Math.floor((Date.now() - startTime) / 1000);
         let correctCount = 0;
@@ -1325,7 +1399,12 @@ function renderExam(subjectId, levelId){
             return { q, given:responses[i], isCorrect };
         });
         const percentage = Math.round((correctCount / questions.length) * 100);
-        CPA.saveResult({ subject:subject.id, level:level.id, score:correctCount, total:questions.length, percentage, durationSec });
+        try{
+            await CPA.saveResult({ subject:subject.id, level:level.id, score:correctCount, total:questions.length, percentage, durationSec });
+        }catch(e){
+            console.error('Failed to save result', e);
+            alert('Your score couldn\'t be saved to your account, but here it is: ' + percentage + '%. (' + (e.message || 'unknown error') + ')');
+        }
         renderResults(review, percentage, correctCount, questions.length, durationSec);
     }
 
@@ -1426,9 +1505,10 @@ function renderAdmin(presetSubject, presetLevel){
     const questionListEl = document.getElementById('questionList');
     const searchInput = document.getElementById('searchInput');
 
-    document.getElementById('adminLogoutBtn').addEventListener('click', () => {
-        CPA.setAdminAuthed(false);
+    document.getElementById('adminLogoutBtn').addEventListener('click', async () => {
+        await CPA.signOut();
         location.hash = '#/';
+        router();
     });
 
     function renderSidebar(){
@@ -1495,10 +1575,14 @@ function renderAdmin(presetSubject, presetLevel){
             </div>`).join('');
 
         questionListEl.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => openModal(btn.dataset.edit)));
-        questionListEl.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', () => {
+        questionListEl.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', async () => {
             if(confirm('Delete this question? This cannot be undone.')){
-                CPA.deleteQuestion(btn.dataset.del);
-                refreshAll();
+                try{
+                    await CPA.deleteQuestion(btn.dataset.del);
+                    refreshAll();
+                }catch(e){
+                    alert('Delete failed: ' + (e.message || 'unknown error'));
+                }
             }
         }));
     }
@@ -1588,7 +1672,7 @@ function renderAdmin(presetSubject, presetLevel){
         overlay.querySelector('#saveQuestionBtn').addEventListener('click', () => saveQuestion(overlay));
     }
 
-    function saveQuestion(overlay){
+    async function saveQuestion(overlay){
         const questionText = overlay.querySelector('#fQuestion').value.trim();
         if(!questionText){ alert('Please enter the question text.'); return; }
 
@@ -1609,11 +1693,17 @@ function renderAdmin(presetSubject, presetLevel){
             payload.solution = overlay.querySelector('#fSolution').value.trim();
         }
 
-        if(editingId) CPA.updateQuestion(editingId, payload);
-        else CPA.addQuestion(payload);
-
-        overlay.remove();
-        refreshAll();
+        const saveBtn = overlay.querySelector('#saveQuestionBtn');
+        saveBtn.disabled = true;
+        try{
+            if(editingId) await CPA.updateQuestion(editingId, payload);
+            else await CPA.addQuestion(payload);
+            overlay.remove();
+            refreshAll();
+        }catch(e){
+            saveBtn.disabled = false;
+            alert('Save failed: ' + (e.message || 'unknown error'));
+        }
     }
 
     /* ---------------- Bulk Import ---------------- */
@@ -1727,7 +1817,7 @@ function renderAdmin(presetSubject, presetLevel){
         overlay.querySelector('#bulkCancelBtn').addEventListener('click', () => overlay.remove());
         overlay.addEventListener('click', e => { if(e.target === overlay) overlay.remove(); });
 
-        overlay.querySelector('#bulkImportRunBtn').addEventListener('click', () => {
+        overlay.querySelector('#bulkImportRunBtn').addEventListener('click', async () => {
             const text = pasteArea.value.trim();
             if(!text){ reportEl.innerHTML = `<div class="bulk-report has-errors">Please choose a file or paste some data first.</div>`; return; }
 
@@ -1751,7 +1841,12 @@ function renderAdmin(presetSubject, presetLevel){
                 return;
             }
 
-            const { added, errors } = CPA.bulkAddQuestions(rows, defaults);
+            const runBtn = overlay.querySelector('#bulkImportRunBtn');
+            runBtn.disabled = true;
+            runBtn.textContent = 'Importing...';
+            const { added, errors } = await CPA.bulkAddQuestions(rows, defaults);
+            runBtn.disabled = false;
+            runBtn.innerHTML = '<i class="fa-solid fa-file-import"></i> Import Questions';
 
             let html = `<div class="bulk-report ${errors.length ? 'has-errors' : ''}">`;
             html += `<b>${added.length} question${added.length === 1 ? '' : 's'} imported${errors.length ? `, ${errors.length} skipped` : ''}.</b>`;
@@ -1782,10 +1877,10 @@ function renderAdmin(presetSubject, presetLevel){
         const file = input.files[0];
         if(!file) return;
         const reader = new FileReader();
-        reader.onload = () => {
+        reader.onload = async () => {
             const mode = confirm('Click OK to MERGE with existing questions, or Cancel to REPLACE the entire bank.') ? 'merge' : 'replace';
             try{
-                CPA.importData(reader.result, mode);
+                await CPA.importData(reader.result, mode);
                 refreshAll();
                 alert('Import complete.');
             }catch(e){

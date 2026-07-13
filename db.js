@@ -1,7 +1,9 @@
 /* ============================================================
    CPA Board Reviewer — Data Layer ("Backend")
-   Everything lives in localStorage. This file is the single
-   source of truth for reading/writing questions & results, so
+   Questions and results now live in Supabase (shared, cross-device),
+   with a small local-only settings key for UI prefs like dark mode.
+   This file is the single source of truth for reading/writing
+   questions & results, so
    every page (admin, subject, exam, dashboard) talks to the
    SAME api instead of touching localStorage directly.
    ============================================================ */
@@ -9,24 +11,53 @@
 const CPA = (() => {
 
     const KEYS = {
-        QUESTIONS: 'cpa_v1_questions',
-        RESULTS:   'cpa_v1_results',
-        SETTINGS:  'cpa_v1_settings'
+        SETTINGS: 'cpa_v1_settings' // local UI prefs only (dark mode) — everything else lives in Supabase now
     };
 
-    // ---- Admin passcode (fixed, hardcoded) -----------------------------
-    // The plain passcode is never stored anywhere in this file or in
-    // localStorage — only its SHA-256 hash is kept here. Whatever the
-    // admin types is hashed the same way and compared against this value.
-    // To change the passcode: compute sha256(newPasscode) and replace the
-    // hex string below.
-    const ADMIN_PASSCODE_HASH = '7958658692d41287f68f32f26fd988180684d8777bf9f13634356d21d1e81a6f';
+    // ---- Supabase client + auth ----------------------------------------
+    const supabaseClient = supabase.createClient(
+        'https://skosmgyicuwvlybkqdal.supabase.co',
+        'sb_publishable_scCLt7VTNyIR-q8QDRPpxQ_4xMubH2Z'
+    );
 
-    async function _sha256Hex(text){
-        const enc = new TextEncoder().encode(text);
-        const digest = await crypto.subtle.digest('SHA-256', enc);
-        return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+    let _user = null;      // { id, email } once logged in
+    let _profile = null;   // { id, display_name, is_admin }
+
+    async function signUp(email, password){
+        const { data, error } = await supabaseClient.auth.signUp({ email, password });
+        if(error) throw error;
+        return data;
     }
+    async function signIn(email, password){
+        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if(error) throw error;
+        _user = data.user;
+        await _loadProfile();
+        return data;
+    }
+    async function signOut(){
+        await supabaseClient.auth.signOut();
+        _user = null;
+        _profile = null;
+    }
+    async function _loadProfile(){
+        if(!_user){ _profile = null; return; }
+        const { data, error } = await supabaseClient.from('profiles').select('*').eq('id', _user.id).single();
+        if(error){ console.error('Failed to load profile', error); _profile = null; return; }
+        _profile = data;
+    }
+    // Call once on page load: restores an existing session (if any) and
+    // pre-loads the question bank + this user's results.
+    async function initSession(){
+        const { data } = await supabaseClient.auth.getSession();
+        _user = data.session ? data.session.user : null;
+        if(_user) await _loadProfile();
+        await loadQuestions();
+        if(_user) await loadResults();
+    }
+    function getUser(){ return _user; }
+    function getDisplayName(){ return _profile && _profile.display_name ? _profile.display_name : (_user ? _user.email : ''); }
+    function isAdmin(){ return !!(_profile && _profile.is_admin); }
 
     // ---- Subject catalogue -----------------------------------------
     // counts = target number of questions an exam pulls for that level.
@@ -69,13 +100,35 @@ const CPA = (() => {
         return 'q_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);
     }
 
-   const supabaseClient = supabase.createClient(
-     'https://skosmgyicuwvlybkqdal.supabase.co',
-     'sb_publishable_scCLt7VTNyIR-q8QDRPpxQ_4xMubH2Z'
-);
     // ---- Questions ---------------------------------------------------
+    // Kept in an in-memory cache so the many render functions elsewhere in
+    // the app can keep reading questions synchronously. The cache is loaded
+    // from Supabase on startup (loadQuestions) and refreshed after any write.
+    let _questionsCache = [];
+
+    function _rowToQuestion(row){
+        return {
+            id: row.id,
+            subject: row.subject,
+            level: row.level,
+            type: row.type,
+            question: row.question,
+            choices: row.choices || [],
+            correctIndex: row.correct_index,
+            answer: row.answer || '',
+            solution: row.solution || '',
+            explanation: row.explanation || '',
+            createdAt: row.created_at,
+            updatedAt: row.updated_at
+        };
+    }
+    async function loadQuestions(){
+        const { data, error } = await supabaseClient.from('questions').select('*').order('created_at', { ascending:true });
+        if(error){ console.error('Failed to load questions', error); _questionsCache = []; return; }
+        _questionsCache = data.map(_rowToQuestion);
+    }
     function getAllQuestions(){
-        return _read(KEYS.QUESTIONS, []);
+        return _questionsCache;
     }
     function getQuestions(subject, level){
         return getAllQuestions().filter(q => q.subject === subject && (!level || q.level === level));
@@ -83,35 +136,41 @@ const CPA = (() => {
     function getQuestion(id){
         return getAllQuestions().find(q => q.id === id) || null;
     }
-    function addQuestion(q){
-        const all = getAllQuestions();
-        const now = new Date().toISOString();
-        const record = Object.assign({
-            id:_uid(),
-            type:'mcq',
-            choices:[],
-            correctIndex:0,
-            answer:'',
-            solution:'',
-            explanation:'',
-            createdAt:now,
-            updatedAt:now
-        }, q);
-        all.push(record);
-        _write(KEYS.QUESTIONS, all);
+    async function addQuestion(q){
+        const row = {
+            subject: q.subject, level: q.level, type: q.type || 'mcq',
+            question: q.question, choices: q.choices || [], correct_index: q.correctIndex,
+            answer: q.answer || '', solution: q.solution || '', explanation: q.explanation || ''
+        };
+        const { data, error } = await supabaseClient.from('questions').insert(row).select().single();
+        if(error) throw error;
+        const record = _rowToQuestion(data);
+        _questionsCache.push(record);
         return record;
     }
-    function updateQuestion(id, patch){
-        const all = getAllQuestions();
-        const idx = all.findIndex(q => q.id === id);
-        if(idx === -1) return null;
-        all[idx] = Object.assign({}, all[idx], patch, { updatedAt:new Date().toISOString() });
-        _write(KEYS.QUESTIONS, all);
-        return all[idx];
+    async function updateQuestion(id, patch){
+        const row = {};
+        if(patch.subject !== undefined) row.subject = patch.subject;
+        if(patch.level !== undefined) row.level = patch.level;
+        if(patch.type !== undefined) row.type = patch.type;
+        if(patch.question !== undefined) row.question = patch.question;
+        if(patch.choices !== undefined) row.choices = patch.choices;
+        if(patch.correctIndex !== undefined) row.correct_index = patch.correctIndex;
+        if(patch.answer !== undefined) row.answer = patch.answer;
+        if(patch.solution !== undefined) row.solution = patch.solution;
+        if(patch.explanation !== undefined) row.explanation = patch.explanation;
+        row.updated_at = new Date().toISOString();
+        const { data, error } = await supabaseClient.from('questions').update(row).eq('id', id).select().single();
+        if(error) throw error;
+        const record = _rowToQuestion(data);
+        const idx = _questionsCache.findIndex(x => x.id === id);
+        if(idx !== -1) _questionsCache[idx] = record;
+        return record;
     }
-    function deleteQuestion(id){
-        const all = getAllQuestions().filter(q => q.id !== id);
-        _write(KEYS.QUESTIONS, all);
+    async function deleteQuestion(id){
+        const { error } = await supabaseClient.from('questions').delete().eq('id', id);
+        if(error) throw error;
+        _questionsCache = _questionsCache.filter(q => q.id !== id);
     }
     function getQuestionCounts(subject){
         const qs = getAllQuestions().filter(q => q.subject === subject);
@@ -128,20 +187,21 @@ const CPA = (() => {
     // (or a `choices` array), correct (letter A-D, 1-based or 0-based number),
     // answer, solution, explanation, subject, level.
     // `defaults.subject` / `defaults.level` are used for any row that omits them.
-    function bulkAddQuestions(rows, defaults){
+    async function bulkAddQuestions(rows, defaults){
         defaults = defaults || {};
         const added = [];
         const errors = [];
 
-        rows.forEach((raw, i) => {
+        for(let i = 0; i < rows.length; i++){
+            const raw = rows[i];
             const rowNum = i + 2; // +2 assumes a header row at line 1 (CSV-friendly numbering)
             try{
                 const record = _normalizeBulkRow(raw, defaults);
-                added.push(addQuestion(record));
+                added.push(await addQuestion(record));
             }catch(e){
                 errors.push({ row: rowNum, message: e.message, raw });
             }
-        });
+        }
 
         return { added, errors };
     }
@@ -274,35 +334,62 @@ const CPA = (() => {
     }
 
     // ---- Results / stats ----------------------------------------------
-    function getAllResults(){
-        return _read(KEYS.RESULTS, []);
+    // The DB (via RLS) only ever returns the logged-in user's own results,
+    // so there's no need to filter by "reviewer" anymore — the cache IS
+    // this user's results.
+    let _resultsCache = [];
+
+    function _rowToResult(row){
+        return {
+            id: row.id,
+            subject: row.subject,
+            level: row.level,
+            score: row.score,
+            total: row.total,
+            percentage: row.percentage,
+            durationSec: row.duration_sec,
+            date: row.date
+        };
     }
-    function saveResult(result){
-        const all = getAllResults();
-        const record = Object.assign({
-            id:_uid(),
-            date:new Date().toISOString(),
-            reviewer:getReviewerName()
-        }, result);
-        all.push(record);
-        _write(KEYS.RESULTS, all);
+    async function loadResults(){
+        if(!_user){ _resultsCache = []; return; }
+        const { data, error } = await supabaseClient.from('results').select('*').eq('user_id', _user.id);
+        if(error){ console.error('Failed to load results', error); _resultsCache = []; return; }
+        _resultsCache = data.map(_rowToResult);
+    }
+    function getAllResults(){
+        return _resultsCache;
+    }
+    async function saveResult(result){
+        if(!_user) throw new Error('You must be signed in to save a result.');
+        const row = {
+            user_id: _user.id,
+            subject: result.subject,
+            level: result.level,
+            score: result.score,
+            total: result.total,
+            percentage: result.percentage,
+            duration_sec: result.durationSec
+        };
+        const { data, error } = await supabaseClient.from('results').insert(row).select().single();
+        if(error) throw error;
+        const record = _rowToResult(data);
+        _resultsCache.push(record);
         return record;
     }
-    function getResults(subject, level, reviewer){
+    function getResults(subject, level){
         return getAllResults().filter(r =>
             (!subject || r.subject === subject) &&
-            (!level || r.level === level) &&
-            (reviewer === undefined || (r.reviewer || '') === reviewer)
+            (!level || r.level === level)
         );
     }
-    function getBestScore(subject, level, reviewer){
-        const rs = getResults(subject, level, reviewer === undefined ? getReviewerName() : reviewer);
+    function getBestScore(subject, level){
+        const rs = getResults(subject, level);
         if(!rs.length) return null;
         return Math.max(...rs.map(r => r.percentage));
     }
-    function getStats(reviewer){
-        const name = reviewer === undefined ? getReviewerName() : reviewer;
-        const all = getAllResults().filter(r => (r.reviewer || '') === name);
+    function getStats(){
+        const all = getAllResults();
         const examsTaken = all.length;
         const avg = examsTaken ? Math.round(all.reduce((a,r) => a + r.percentage, 0) / examsTaken) : 0;
         const highest = examsTaken ? Math.max(...all.map(r => r.percentage)) : 0;
@@ -310,14 +397,13 @@ const CPA = (() => {
     }
 
     // ---- Detailed progress helpers -------------------------------------
-    function _reviewerResults(reviewer){
-        const name = reviewer === undefined ? getReviewerName() : reviewer;
-        return getAllResults().filter(r => (r.reviewer || '') === name);
+    function _reviewerResults(){
+        return getAllResults();
     }
     // Best score + attempt count per subject/level, plus a per-subject average
     // across whichever tiers have been attempted at least once.
-    function getSubjectBreakdown(reviewer){
-        const results = _reviewerResults(reviewer);
+    function getSubjectBreakdown(){
+        const results = _reviewerResults();
         return SUBJECTS.map(s => {
             const levels = {};
             LEVELS.forEach(l => {
@@ -334,16 +420,16 @@ const CPA = (() => {
         });
     }
     // Most recent exam attempts, newest first.
-    function getRecentResults(limit, reviewer){
-        return _reviewerResults(reviewer)
+    function getRecentResults(limit){
+        return _reviewerResults()
             .slice()
             .sort((a, b) => new Date(b.date) - new Date(a.date))
             .slice(0, limit || 10);
     }
     // Subject/level tiers whose best score is still below the passing mark.
-    function getWeakAreas(threshold, reviewer){
+    function getWeakAreas(threshold){
         threshold = threshold === undefined ? 75 : threshold;
-        const results = _reviewerResults(reviewer);
+        const results = _reviewerResults();
         const weak = [];
         SUBJECTS.forEach(s => {
             LEVELS.forEach(l => {
@@ -356,18 +442,19 @@ const CPA = (() => {
         return weak.sort((a, b) => a.best - b.best);
     }
     // All attempts in chronological order, for plotting a trend line.
-    function getTrendData(reviewer){
-        return _reviewerResults(reviewer).slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+    function getTrendData(){
+        return _reviewerResults().slice().sort((a, b) => new Date(a.date) - new Date(b.date));
     }
-    // Clears only this reviewer's saved exam results/stats. Leaves the
-    // question bank and every other reviewer's results untouched.
-    function resetProgress(reviewer){
-        const name = reviewer === undefined ? getReviewerName() : reviewer;
-        const remaining = getAllResults().filter(r => (r.reviewer || '') !== name);
-        _write(KEYS.RESULTS, remaining);
+    // Clears this user's saved exam results/stats in Supabase. Leaves the
+    // question bank and every other user's results untouched.
+    async function resetProgress(){
+        if(!_user) return;
+        const { error } = await supabaseClient.from('results').delete().eq('user_id', _user.id);
+        if(error) throw error;
+        _resultsCache = [];
     }
 
-    // ---- Import / export (backup, since this is local-only storage) --
+    // ---- Import / export (backup) --------------------------------------
     function exportData(){
         return JSON.stringify({
             questions:getAllQuestions(),
@@ -376,29 +463,27 @@ const CPA = (() => {
             version:1
         }, null, 2);
     }
-    function importData(json, mode){
+    // Import a JSON backup. Questions get inserted into Supabase (admin-only,
+    // enforced by RLS); "replace" first deletes every existing question.
+    async function importData(json, mode){
         let parsed;
         try{ parsed = JSON.parse(json); } catch(e){ throw new Error('That file isn\'t valid JSON.'); }
         const incomingQ = Array.isArray(parsed.questions) ? parsed.questions : [];
-        const incomingR = Array.isArray(parsed.results) ? parsed.results : [];
+
         if(mode === 'replace'){
-            _write(KEYS.QUESTIONS, incomingQ);
-            _write(KEYS.RESULTS, incomingR);
-        } else {
-            const existingQ = getAllQuestions();
-            const existingIds = new Set(existingQ.map(q => q.id));
-            const merged = existingQ.concat(incomingQ.filter(q => !existingIds.has(q.id)));
-            _write(KEYS.QUESTIONS, merged);
-            const existingR = getAllResults();
-            _write(KEYS.RESULTS, existingR.concat(incomingR));
+            const existing = getAllQuestions();
+            for(const q of existing) await deleteQuestion(q.id);
         }
-    }
-    function clearAll(){
-        localStorage.removeItem(KEYS.QUESTIONS);
-        localStorage.removeItem(KEYS.RESULTS);
+        const existingIds = new Set(mode === 'replace' ? [] : getAllQuestions().map(q => q.id));
+        for(const q of incomingQ){
+            if(existingIds.has(q.id)) continue; // skip duplicates on merge
+            await addQuestion(q);
+        }
+        // Note: results are per-user and tied to your own account, so
+        // imported results aren't restored here — only the question bank is.
     }
 
-    // ---- Dark mode (shared across pages) ------------------------------
+    // ---- Dark mode (shared across pages, still just a local UI pref) --
     function getDarkMode(){ return _read(KEYS.SETTINGS, {}).dark === true; }
     function setDarkMode(val){
         const s = _read(KEYS.SETTINGS, {});
@@ -419,34 +504,6 @@ const CPA = (() => {
         });
     }
 
-    // ---- Reviewer identity (name only, remembered on this device) -----
-    function getReviewerName(){ return (_read(KEYS.SETTINGS, {}).reviewerName || '').trim(); }
-    function setReviewerName(name){
-        const s = _read(KEYS.SETTINGS, {});
-        s.reviewerName = (name || '').trim();
-        _write(KEYS.SETTINGS, s);
-    }
-    function clearReviewerName(){
-        const s = _read(KEYS.SETTINGS, {});
-        delete s.reviewerName;
-        _write(KEYS.SETTINGS, s);
-    }
-
-    // ---- Admin passcode check (fixed passcode, hash comparison only) ----
-    // Returns a Promise<boolean>. The typed value is hashed client-side and
-    // compared to the hardcoded ADMIN_PASSCODE_HASH — the plain passcode
-    // never touches localStorage or any variable beyond this function call.
-    async function checkAdminPasscode(code){
-        const hash = await _sha256Hex((code || '').trim());
-        return hash === ADMIN_PASSCODE_HASH;
-    }
-    function isAdminAuthed(){ return _read(KEYS.SETTINGS, {}).adminAuthed === true; }
-    function setAdminAuthed(val){
-        const s = _read(KEYS.SETTINGS, {});
-        s.adminAuthed = val;
-        _write(KEYS.SETTINGS, s);
-    }
-
     return {
         SUBJECTS, LEVELS,
         getAllQuestions, getQuestions, getQuestion, addQuestion, updateQuestion, deleteQuestion, getQuestionCounts,
@@ -454,9 +511,9 @@ const CPA = (() => {
         buildExam,
         getAllResults, saveResult, getResults, getBestScore, getStats,
         getSubjectBreakdown, getRecentResults, getWeakAreas, getTrendData, resetProgress,
-        exportData, importData, clearAll,
+        exportData, importData,
         initDarkMode,
-        getReviewerName, setReviewerName, clearReviewerName,
-        checkAdminPasscode, isAdminAuthed, setAdminAuthed
+        initSession, signUp, signIn, signOut, getUser, getDisplayName, isAdmin,
+        loadQuestions, loadResults
     };
 })();
