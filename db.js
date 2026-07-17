@@ -52,6 +52,7 @@ const CPA = (() => {
         const { data } = await supabaseClient.auth.getSession();
         _user = data.session ? data.session.user : null;
         if(_user) await _loadProfile();
+        await loadTopics();
         await loadQuestions();
         if(_user) await loadResults();
     }
@@ -59,23 +60,88 @@ const CPA = (() => {
     function getDisplayName(){ return _profile && _profile.display_name ? _profile.display_name : (_user ? _user.email : ''); }
     function isAdmin(){ return !!(_profile && _profile.is_admin); }
 
+    // ---- Topics (per-subject, admin-managed) ---------------------------
+    // Requires a `topics` table in Supabase — see migration.sql. Each topic
+    // just needs an id/subject/name/sort_order; questions and results keep
+    // using their existing `level` column to store a topic's id.
+    let _topicsCache = [];
+    function _rowToTopic(row){
+        return { id: row.id, subject: row.subject, name: row.name, sortOrder: row.sort_order, createdAt: row.created_at };
+    }
+    async function loadTopics(){
+        const { data, error } = await supabaseClient.from('topics').select('*').order('sort_order', { ascending:true });
+        if(error){ console.error('Failed to load topics', error); _topicsCache = []; return; }
+        _topicsCache = data.map(_rowToTopic);
+    }
+    function getAllTopics(){ return _topicsCache; }
+    function getTopics(subject){
+        return _topicsCache.filter(t => t.subject === subject).sort((a,b) => a.sortOrder - b.sortOrder);
+    }
+    function getTopic(id){ return _topicsCache.find(t => t.id === id) || null; }
+    async function addTopic(subject, name){
+        name = (name || '').trim();
+        if(!name) throw new Error('Topic name is required.');
+        const existing = getTopics(subject);
+        const sortOrder = existing.length ? Math.max(...existing.map(t => t.sortOrder)) + 1 : 0;
+        const row = {
+            id: 't_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8),
+            subject, name, sort_order: sortOrder
+        };
+        const { data, error } = await supabaseClient.from('topics').insert(row).select().single();
+        if(error) throw error;
+        const record = _rowToTopic(data);
+        _topicsCache.push(record);
+        return record;
+    }
+    async function renameTopic(id, name){
+        name = (name || '').trim();
+        if(!name) throw new Error('Topic name is required.');
+        const { data, error } = await supabaseClient.from('topics').update({ name }).eq('id', id).select().single();
+        if(error) throw error;
+        const record = _rowToTopic(data);
+        const idx = _topicsCache.findIndex(t => t.id === id);
+        if(idx !== -1) _topicsCache[idx] = record;
+        return record;
+    }
+    // Deleting a topic also removes every question filed under it, since an
+    // orphaned topic id in the question bank would be unreachable from the UI.
+    async function deleteTopic(id){
+        const qs = getAllQuestions().filter(q => q.level === id);
+        for(const q of qs) await deleteQuestion(q.id);
+        const { error } = await supabaseClient.from('topics').delete().eq('id', id);
+        if(error) throw error;
+        _topicsCache = _topicsCache.filter(t => t.id !== id);
+    }
+    // Mastery unlocks once every topic in the subject has been passed at
+    // least once (best score >= MASTERY_PASS_THRESHOLD). A subject with no
+    // topics yet can't unlock Mastery.
+    function isMasteryUnlocked(subject){
+        const topics = getTopics(subject);
+        if(!topics.length) return false;
+        return topics.every(t => {
+            const best = getBestScore(subject, t.id);
+            return best !== null && best >= MASTERY_PASS_THRESHOLD;
+        });
+    }
+
     // ---- Subject catalogue -----------------------------------------
-    // counts = target number of questions an exam pulls for that level.
+    // Subjects are still fixed (the six CPALE subjects). Topics inside each
+    // subject are no longer fixed tiers — they're admin-defined and live in
+    // the `topics` table (see loadTopics/addTopic/etc below).
     const SUBJECTS = [
-        { id:'FAR',       name:'FAR',       full:'Financial Accounting & Reporting',       icon:'fa-calculator',              counts:{easy:30, intermediate:20, hard:10, mastery:null} },
-        { id:'AFAR',      name:'AFAR',      full:'Advanced Financial Accounting & Reporting', icon:'fa-chart-line',           counts:{easy:30, intermediate:20, hard:10, mastery:null} },
-        { id:'MS',        name:'MS',        full:'Management Services',                    icon:'fa-briefcase',               counts:{easy:30, intermediate:20, hard:10, mastery:null} },
-        { id:'AUDITING',  name:'Auditing',  full:'Auditing Theory & Problems',              icon:'fa-magnifying-glass-chart',  counts:{easy:30, intermediate:20, hard:10, mastery:null} },
-        { id:'TAXATION',  name:'Taxation',  full:'Tax Concepts & Computations',             icon:'fa-receipt',                 counts:{easy:30, intermediate:20, hard:10, mastery:null}, featured:true },
-        { id:'RFBT',      name:'RFBT',      full:'Regulatory Framework & Business Law',     icon:'fa-scale-balanced',          counts:{easy:30, intermediate:20, hard:10, mastery:null} }
+        { id:'FAR',       name:'FAR',       full:'Financial Accounting & Reporting',       icon:'fa-calculator' },
+        { id:'AFAR',      name:'AFAR',      full:'Advanced Financial Accounting & Reporting', icon:'fa-chart-line' },
+        { id:'MS',        name:'MS',        full:'Management Services',                    icon:'fa-briefcase' },
+        { id:'AUDITING',  name:'Auditing',  full:'Auditing Theory & Problems',              icon:'fa-magnifying-glass-chart' },
+        { id:'TAXATION',  name:'Taxation',  full:'Tax Concepts & Computations',             icon:'fa-receipt', featured:true },
+        { id:'RFBT',      name:'RFBT',      full:'Regulatory Framework & Business Law',     icon:'fa-scale-balanced' }
     ];
 
-    const LEVELS = [
-        { id:'easy',         label:'Easy',         desc:'Foundational recall & concepts' },
-        { id:'intermediate', label:'Intermediate', desc:'Applied, multi-step questions' },
-        { id:'hard',         label:'Hard',         desc:'Problem solving & computations' },
-        { id:'mastery',      label:'Mastery',      desc:'Comprehensive, board-condition mixed review' }
-    ];
+    // The Mastery Exam is a computed pseudo-topic (not a row in the topics
+    // table): it pulls every question from every topic in the subject, and
+    // only unlocks once each real topic has been passed at least once.
+    const MASTERY_TOPIC_ID = '__mastery__';
+    const MASTERY_PASS_THRESHOLD = 75;
 
     // ---- low-level storage helpers ----------------------------------
     function _read(key, fallback){
@@ -175,7 +241,7 @@ const CPA = (() => {
     function getQuestionCounts(subject){
         const qs = getAllQuestions().filter(q => q.subject === subject);
         const counts = {};
-        LEVELS.forEach(l => { counts[l.id] = qs.filter(q => q.level === l.id).length; });
+        getTopics(subject).forEach(t => { counts[t.id] = qs.filter(q => q.level === t.id).length; });
         return counts;
     }
 
@@ -215,7 +281,9 @@ const CPA = (() => {
         };
 
         const subject = (get(raw, ['subject', 'Subject', 'SUBJECT']) || defaults.subject || '').toUpperCase();
-        const level = (get(raw, ['level', 'Level', 'LEVEL', 'difficulty', 'Difficulty']) || defaults.level || '').toLowerCase();
+        // "level" is kept as the column/field name for backward compatibility,
+        // but it now holds a topic id rather than easy/intermediate/hard/mastery.
+        const level = (get(raw, ['topic', 'Topic', 'TOPIC', 'level', 'Level', 'LEVEL']) || defaults.level || '');
         const type = (get(raw, ['type', 'Type', 'TYPE']) || defaults.type || 'mcq').toLowerCase();
         const question = get(raw, ['question', 'Question', 'QUESTION', 'q']);
         const explanation = get(raw, ['explanation', 'Explanation']);
@@ -223,8 +291,8 @@ const CPA = (() => {
         if(!SUBJECTS.some(s => s.id === subject)){
             throw new Error(`Unknown subject "${subject || '(blank)'}". Use one of: ${SUBJECTS.map(s=>s.id).join(', ')}.`);
         }
-        if(!LEVELS.some(l => l.id === level)){
-            throw new Error(`Unknown level "${level || '(blank)'}". Use one of: ${LEVELS.map(l=>l.id).join(', ')}.`);
+        if(!getTopics(subject).some(t => t.id === level)){
+            throw new Error(`Unknown topic "${level || '(blank)'}" for ${subject}. Add the topic first from the admin panel.`);
         }
         if(!question){
             throw new Error('Missing question text.');
@@ -321,16 +389,19 @@ const CPA = (() => {
         }
         return a;
     }
-    function buildExam(subject, level){
-        const subjectDef = SUBJECTS.find(s => s.id === subject);
-        const configuredTarget = subjectDef ? subjectDef.counts[level] : 10;
-        const bank = getQuestions(subject, level);
-        // A null/undefined target (currently just "mastery") means "no cap" —
-        // the exam uses every question that's been added for that tier.
-        const unlimited = configuredTarget === null || configuredTarget === undefined;
-        const target = unlimited ? bank.length : configuredTarget;
-        const picked = shuffle(bank).slice(0, target);
-        return { questions: picked, target, available: bank.length, unlimited };
+    // Every topic exam (and Mastery) is uncapped now — it simply uses every
+    // question that's been loaded into that topic (or, for Mastery, every
+    // question across every topic in the subject).
+    function buildExam(subject, topicId){
+        if(topicId === MASTERY_TOPIC_ID) return buildMasteryExam(subject);
+        const bank = getQuestions(subject, topicId);
+        const picked = shuffle(bank);
+        return { questions: picked, target: picked.length, available: bank.length, unlimited: true };
+    }
+    function buildMasteryExam(subject){
+        const bank = getAllQuestions().filter(q => q.subject === subject);
+        const picked = shuffle(bank);
+        return { questions: picked, target: picked.length, available: bank.length, unlimited: true };
     }
 
     // ---- Results / stats ----------------------------------------------
@@ -405,18 +476,22 @@ const CPA = (() => {
     function getSubjectBreakdown(){
         const results = _reviewerResults();
         return SUBJECTS.map(s => {
+            const topics = getTopics(s.id);
             const levels = {};
-            LEVELS.forEach(l => {
-                const lvlResults = results.filter(r => r.subject === s.id && r.level === l.id);
-                levels[l.id] = {
-                    best: lvlResults.length ? Math.max(...lvlResults.map(r => r.percentage)) : null,
-                    attempts: lvlResults.length
+            topics.forEach(t => {
+                const tResults = results.filter(r => r.subject === s.id && r.level === t.id);
+                levels[t.id] = {
+                    name: t.name,
+                    best: tResults.length ? Math.max(...tResults.map(r => r.percentage)) : null,
+                    attempts: tResults.length
                 };
             });
-            const bests = LEVELS.map(l => levels[l.id].best).filter(b => b !== null);
+            const masteryResults = results.filter(r => r.subject === s.id && r.level === MASTERY_TOPIC_ID);
+            const masteryBest = masteryResults.length ? Math.max(...masteryResults.map(r => r.percentage)) : null;
+            const bests = topics.map(t => levels[t.id].best).filter(b => b !== null);
             const avg = bests.length ? Math.round(bests.reduce((a,b) => a+b, 0) / bests.length) : null;
-            const totalAttempts = LEVELS.reduce((sum, l) => sum + levels[l.id].attempts, 0);
-            return { subject: s, levels, avg, totalAttempts };
+            const totalAttempts = topics.reduce((sum, t) => sum + levels[t.id].attempts, 0) + masteryResults.length;
+            return { subject: s, topics, levels, masteryBest, masteryAttempts: masteryResults.length, avg, totalAttempts, masteryUnlocked: isMasteryUnlocked(s.id) };
         });
     }
     // Most recent exam attempts, newest first.
@@ -432,11 +507,11 @@ const CPA = (() => {
         const results = _reviewerResults();
         const weak = [];
         SUBJECTS.forEach(s => {
-            LEVELS.forEach(l => {
-                const lvlResults = results.filter(r => r.subject === s.id && r.level === l.id);
-                if(!lvlResults.length) return;
-                const best = Math.max(...lvlResults.map(r => r.percentage));
-                if(best < threshold) weak.push({ subject: s, level: l, best });
+            getTopics(s.id).forEach(t => {
+                const tResults = results.filter(r => r.subject === s.id && r.level === t.id);
+                if(!tResults.length) return;
+                const best = Math.max(...tResults.map(r => r.percentage));
+                if(best < threshold) weak.push({ subject: s, level: { id:t.id, label:t.name }, best });
             });
         });
         return weak.sort((a, b) => a.best - b.best);
@@ -457,18 +532,28 @@ const CPA = (() => {
     // ---- Import / export (backup) --------------------------------------
     function exportData(){
         return JSON.stringify({
+            topics:getAllTopics(),
             questions:getAllQuestions(),
             results:getAllResults(),
             exportedAt:new Date().toISOString(),
-            version:1
+            version:2
         }, null, 2);
     }
-    // Import a JSON backup. Questions get inserted into Supabase (admin-only,
-    // enforced by RLS); "replace" first deletes every existing question.
+    // Import a JSON backup. Topics/questions get inserted into Supabase
+    // (admin-only, enforced by RLS); "replace" first deletes every existing
+    // question (topics are matched by subject+name and only added if missing,
+    // never deleted, so nothing else built on top of them breaks).
     async function importData(json, mode){
         let parsed;
         try{ parsed = JSON.parse(json); } catch(e){ throw new Error('That file isn\'t valid JSON.'); }
+        const incomingTopics = Array.isArray(parsed.topics) ? parsed.topics : [];
         const incomingQ = Array.isArray(parsed.questions) ? parsed.questions : [];
+
+        for(const t of incomingTopics){
+            if(!t || !t.subject || !t.name) continue;
+            const exists = getTopics(t.subject).some(existing => existing.name === t.name);
+            if(!exists) await addTopic(t.subject, t.name);
+        }
 
         if(mode === 'replace'){
             const existing = getAllQuestions();
@@ -480,7 +565,7 @@ const CPA = (() => {
             await addQuestion(q);
         }
         // Note: results are per-user and tied to your own account, so
-        // imported results aren't restored here — only the question bank is.
+        // imported results aren't restored here — only topics + question bank are.
     }
 
     // ---- Dark mode (shared across pages, still just a local UI pref) --
@@ -505,10 +590,11 @@ const CPA = (() => {
     }
 
     return {
-        SUBJECTS, LEVELS,
+        SUBJECTS, MASTERY_TOPIC_ID, MASTERY_PASS_THRESHOLD,
+        loadTopics, getAllTopics, getTopics, getTopic, addTopic, renameTopic, deleteTopic, isMasteryUnlocked,
         getAllQuestions, getQuestions, getQuestion, addQuestion, updateQuestion, deleteQuestion, getQuestionCounts,
         bulkAddQuestions, parseCSV,
-        buildExam,
+        buildExam, buildMasteryExam,
         getAllResults, saveResult, getResults, getBestScore, getStats,
         getSubjectBreakdown, getRecentResults, getWeakAreas, getTrendData, resetProgress,
         exportData, importData,

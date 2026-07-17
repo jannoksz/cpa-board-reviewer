@@ -431,6 +431,7 @@ const CPA = (() => {
         const { data } = await supabaseClient.auth.getSession();
         _user = data.session ? data.session.user : null;
         if(_user) await _loadProfile();
+        await loadTopics();
         await loadQuestions();
         if(_user) await loadResults();
     }
@@ -438,23 +439,88 @@ const CPA = (() => {
     function getDisplayName(){ return _profile && _profile.display_name ? _profile.display_name : (_user ? _user.email : ''); }
     function isAdmin(){ return !!(_profile && _profile.is_admin); }
 
+    // ---- Topics (per-subject, admin-managed) ---------------------------
+    // Requires a `topics` table in Supabase — see migration.sql. Each topic
+    // just needs an id/subject/name/sort_order; questions and results keep
+    // using their existing `level` column to store a topic's id.
+    let _topicsCache = [];
+    function _rowToTopic(row){
+        return { id: row.id, subject: row.subject, name: row.name, sortOrder: row.sort_order, createdAt: row.created_at };
+    }
+    async function loadTopics(){
+        const { data, error } = await supabaseClient.from('topics').select('*').order('sort_order', { ascending:true });
+        if(error){ console.error('Failed to load topics', error); _topicsCache = []; return; }
+        _topicsCache = data.map(_rowToTopic);
+    }
+    function getAllTopics(){ return _topicsCache; }
+    function getTopics(subject){
+        return _topicsCache.filter(t => t.subject === subject).sort((a,b) => a.sortOrder - b.sortOrder);
+    }
+    function getTopic(id){ return _topicsCache.find(t => t.id === id) || null; }
+    async function addTopic(subject, name){
+        name = (name || '').trim();
+        if(!name) throw new Error('Topic name is required.');
+        const existing = getTopics(subject);
+        const sortOrder = existing.length ? Math.max(...existing.map(t => t.sortOrder)) + 1 : 0;
+        const row = {
+            id: 't_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8),
+            subject, name, sort_order: sortOrder
+        };
+        const { data, error } = await supabaseClient.from('topics').insert(row).select().single();
+        if(error) throw error;
+        const record = _rowToTopic(data);
+        _topicsCache.push(record);
+        return record;
+    }
+    async function renameTopic(id, name){
+        name = (name || '').trim();
+        if(!name) throw new Error('Topic name is required.');
+        const { data, error } = await supabaseClient.from('topics').update({ name }).eq('id', id).select().single();
+        if(error) throw error;
+        const record = _rowToTopic(data);
+        const idx = _topicsCache.findIndex(t => t.id === id);
+        if(idx !== -1) _topicsCache[idx] = record;
+        return record;
+    }
+    // Deleting a topic also removes every question filed under it, since an
+    // orphaned topic id in the question bank would be unreachable from the UI.
+    async function deleteTopic(id){
+        const qs = getAllQuestions().filter(q => q.level === id);
+        for(const q of qs) await deleteQuestion(q.id);
+        const { error } = await supabaseClient.from('topics').delete().eq('id', id);
+        if(error) throw error;
+        _topicsCache = _topicsCache.filter(t => t.id !== id);
+    }
+    // Mastery unlocks once every topic in the subject has been passed at
+    // least once (best score >= MASTERY_PASS_THRESHOLD). A subject with no
+    // topics yet can't unlock Mastery.
+    function isMasteryUnlocked(subject){
+        const topics = getTopics(subject);
+        if(!topics.length) return false;
+        return topics.every(t => {
+            const best = getBestScore(subject, t.id);
+            return best !== null && best >= MASTERY_PASS_THRESHOLD;
+        });
+    }
+
     // ---- Subject catalogue -----------------------------------------
-    // counts = target number of questions an exam pulls for that level.
+    // Subjects are still fixed (the six CPALE subjects). Topics inside each
+    // subject are no longer fixed tiers — they're admin-defined and live in
+    // the `topics` table (see loadTopics/addTopic/etc below).
     const SUBJECTS = [
-        { id:'FAR',       name:'FAR',       full:'Financial Accounting & Reporting',       icon:'fa-calculator',              counts:{easy:30, intermediate:20, hard:10, mastery:null} },
-        { id:'AFAR',      name:'AFAR',      full:'Advanced Financial Accounting & Reporting', icon:'fa-chart-line',           counts:{easy:30, intermediate:20, hard:10, mastery:null} },
-        { id:'MS',        name:'MS',        full:'Management Services',                    icon:'fa-briefcase',               counts:{easy:30, intermediate:20, hard:10, mastery:null} },
-        { id:'AUDITING',  name:'Auditing',  full:'Auditing Theory & Problems',              icon:'fa-magnifying-glass-chart',  counts:{easy:30, intermediate:20, hard:10, mastery:null} },
-        { id:'TAXATION',  name:'Taxation',  full:'Tax Concepts & Computations',             icon:'fa-receipt',                 counts:{easy:30, intermediate:20, hard:10, mastery:null}, featured:true },
-        { id:'RFBT',      name:'RFBT',      full:'Regulatory Framework & Business Law',     icon:'fa-scale-balanced',          counts:{easy:30, intermediate:20, hard:10, mastery:null} }
+        { id:'FAR',       name:'FAR',       full:'Financial Accounting & Reporting',       icon:'fa-calculator' },
+        { id:'AFAR',      name:'AFAR',      full:'Advanced Financial Accounting & Reporting', icon:'fa-chart-line' },
+        { id:'MS',        name:'MS',        full:'Management Services',                    icon:'fa-briefcase' },
+        { id:'AUDITING',  name:'Auditing',  full:'Auditing Theory & Problems',              icon:'fa-magnifying-glass-chart' },
+        { id:'TAXATION',  name:'Taxation',  full:'Tax Concepts & Computations',             icon:'fa-receipt', featured:true },
+        { id:'RFBT',      name:'RFBT',      full:'Regulatory Framework & Business Law',     icon:'fa-scale-balanced' }
     ];
 
-    const LEVELS = [
-        { id:'easy',         label:'Easy',         desc:'Foundational recall & concepts' },
-        { id:'intermediate', label:'Intermediate', desc:'Applied, multi-step questions' },
-        { id:'hard',         label:'Hard',         desc:'Problem solving & computations' },
-        { id:'mastery',      label:'Mastery',      desc:'Comprehensive, board-condition mixed review' }
-    ];
+    // The Mastery Exam is a computed pseudo-topic (not a row in the topics
+    // table): it pulls every question from every topic in the subject, and
+    // only unlocks once each real topic has been passed at least once.
+    const MASTERY_TOPIC_ID = '__mastery__';
+    const MASTERY_PASS_THRESHOLD = 75;
 
     // ---- low-level storage helpers ----------------------------------
     function _read(key, fallback){
@@ -554,7 +620,7 @@ const CPA = (() => {
     function getQuestionCounts(subject){
         const qs = getAllQuestions().filter(q => q.subject === subject);
         const counts = {};
-        LEVELS.forEach(l => { counts[l.id] = qs.filter(q => q.level === l.id).length; });
+        getTopics(subject).forEach(t => { counts[t.id] = qs.filter(q => q.level === t.id).length; });
         return counts;
     }
 
@@ -594,7 +660,9 @@ const CPA = (() => {
         };
 
         const subject = (get(raw, ['subject', 'Subject', 'SUBJECT']) || defaults.subject || '').toUpperCase();
-        const level = (get(raw, ['level', 'Level', 'LEVEL', 'difficulty', 'Difficulty']) || defaults.level || '').toLowerCase();
+        // "level" is kept as the column/field name for backward compatibility,
+        // but it now holds a topic id or topic name rather than easy/hard/etc.
+        const levelRaw = (get(raw, ['topic', 'Topic', 'TOPIC', 'level', 'Level', 'LEVEL']) || defaults.level || '');
         const type = (get(raw, ['type', 'Type', 'TYPE']) || defaults.type || 'mcq').toLowerCase();
         const question = get(raw, ['question', 'Question', 'QUESTION', 'q']);
         const explanation = get(raw, ['explanation', 'Explanation']);
@@ -602,9 +670,13 @@ const CPA = (() => {
         if(!SUBJECTS.some(s => s.id === subject)){
             throw new Error(`Unknown subject "${subject || '(blank)'}". Use one of: ${SUBJECTS.map(s=>s.id).join(', ')}.`);
         }
-        if(!LEVELS.some(l => l.id === level)){
-            throw new Error(`Unknown level "${level || '(blank)'}". Use one of: ${LEVELS.map(l=>l.id).join(', ')}.`);
+        const subjectTopics = getTopics(subject);
+        const matchedTopic = subjectTopics.find(t => t.id === levelRaw) ||
+            subjectTopics.find(t => t.name.toLowerCase() === levelRaw.toLowerCase());
+        if(!matchedTopic){
+            throw new Error(`Unknown topic "${levelRaw || '(blank)'}" for ${subject}. Add the topic first from the admin panel, then use its exact name here.`);
         }
+        const level = matchedTopic.id;
         if(!question){
             throw new Error('Missing question text.');
         }
@@ -700,16 +772,19 @@ const CPA = (() => {
         }
         return a;
     }
-    function buildExam(subject, level){
-        const subjectDef = SUBJECTS.find(s => s.id === subject);
-        const configuredTarget = subjectDef ? subjectDef.counts[level] : 10;
-        const bank = getQuestions(subject, level);
-        // A null/undefined target (currently just "mastery") means "no cap" —
-        // the exam uses every question that's been added for that tier.
-        const unlimited = configuredTarget === null || configuredTarget === undefined;
-        const target = unlimited ? bank.length : configuredTarget;
-        const picked = shuffle(bank).slice(0, target);
-        return { questions: picked, target, available: bank.length, unlimited };
+    // Every topic exam (and Mastery) is uncapped now — it simply uses every
+    // question that's been loaded into that topic (or, for Mastery, every
+    // question across every topic in the subject).
+    function buildExam(subject, topicId){
+        if(topicId === MASTERY_TOPIC_ID) return buildMasteryExam(subject);
+        const bank = getQuestions(subject, topicId);
+        const picked = shuffle(bank);
+        return { questions: picked, target: picked.length, available: bank.length, unlimited: true };
+    }
+    function buildMasteryExam(subject){
+        const bank = getAllQuestions().filter(q => q.subject === subject);
+        const picked = shuffle(bank);
+        return { questions: picked, target: picked.length, available: bank.length, unlimited: true };
     }
 
     // ---- Results / stats ----------------------------------------------
@@ -784,18 +859,22 @@ const CPA = (() => {
     function getSubjectBreakdown(){
         const results = _reviewerResults();
         return SUBJECTS.map(s => {
+            const topics = getTopics(s.id);
             const levels = {};
-            LEVELS.forEach(l => {
-                const lvlResults = results.filter(r => r.subject === s.id && r.level === l.id);
-                levels[l.id] = {
-                    best: lvlResults.length ? Math.max(...lvlResults.map(r => r.percentage)) : null,
-                    attempts: lvlResults.length
+            topics.forEach(t => {
+                const tResults = results.filter(r => r.subject === s.id && r.level === t.id);
+                levels[t.id] = {
+                    name: t.name,
+                    best: tResults.length ? Math.max(...tResults.map(r => r.percentage)) : null,
+                    attempts: tResults.length
                 };
             });
-            const bests = LEVELS.map(l => levels[l.id].best).filter(b => b !== null);
+            const masteryResults = results.filter(r => r.subject === s.id && r.level === MASTERY_TOPIC_ID);
+            const masteryBest = masteryResults.length ? Math.max(...masteryResults.map(r => r.percentage)) : null;
+            const bests = topics.map(t => levels[t.id].best).filter(b => b !== null);
             const avg = bests.length ? Math.round(bests.reduce((a,b) => a+b, 0) / bests.length) : null;
-            const totalAttempts = LEVELS.reduce((sum, l) => sum + levels[l.id].attempts, 0);
-            return { subject: s, levels, avg, totalAttempts };
+            const totalAttempts = topics.reduce((sum, t) => sum + levels[t.id].attempts, 0) + masteryResults.length;
+            return { subject: s, topics, levels, masteryBest, masteryAttempts: masteryResults.length, avg, totalAttempts, masteryUnlocked: isMasteryUnlocked(s.id) };
         });
     }
     // Most recent exam attempts, newest first.
@@ -811,11 +890,11 @@ const CPA = (() => {
         const results = _reviewerResults();
         const weak = [];
         SUBJECTS.forEach(s => {
-            LEVELS.forEach(l => {
-                const lvlResults = results.filter(r => r.subject === s.id && r.level === l.id);
-                if(!lvlResults.length) return;
-                const best = Math.max(...lvlResults.map(r => r.percentage));
-                if(best < threshold) weak.push({ subject: s, level: l, best });
+            getTopics(s.id).forEach(t => {
+                const tResults = results.filter(r => r.subject === s.id && r.level === t.id);
+                if(!tResults.length) return;
+                const best = Math.max(...tResults.map(r => r.percentage));
+                if(best < threshold) weak.push({ subject: s, level: { id:t.id, label:t.name }, best });
             });
         });
         return weak.sort((a, b) => a.best - b.best);
@@ -836,18 +915,28 @@ const CPA = (() => {
     // ---- Import / export (backup) --------------------------------------
     function exportData(){
         return JSON.stringify({
+            topics:getAllTopics(),
             questions:getAllQuestions(),
             results:getAllResults(),
             exportedAt:new Date().toISOString(),
-            version:1
+            version:2
         }, null, 2);
     }
-    // Import a JSON backup. Questions get inserted into Supabase (admin-only,
-    // enforced by RLS); "replace" first deletes every existing question.
+    // Import a JSON backup. Topics/questions get inserted into Supabase
+    // (admin-only, enforced by RLS); "replace" first deletes every existing
+    // question (topics are matched by subject+name and only added if missing,
+    // never deleted, so nothing else built on top of them breaks).
     async function importData(json, mode){
         let parsed;
         try{ parsed = JSON.parse(json); } catch(e){ throw new Error('That file isn\'t valid JSON.'); }
+        const incomingTopics = Array.isArray(parsed.topics) ? parsed.topics : [];
         const incomingQ = Array.isArray(parsed.questions) ? parsed.questions : [];
+
+        for(const t of incomingTopics){
+            if(!t || !t.subject || !t.name) continue;
+            const exists = getTopics(t.subject).some(existing => existing.name === t.name);
+            if(!exists) await addTopic(t.subject, t.name);
+        }
 
         if(mode === 'replace'){
             const existing = getAllQuestions();
@@ -859,7 +948,7 @@ const CPA = (() => {
             await addQuestion(q);
         }
         // Note: results are per-user and tied to your own account, so
-        // imported results aren't restored here — only the question bank is.
+        // imported results aren't restored here — only topics + question bank are.
     }
 
     // ---- Dark mode (shared across pages, still just a local UI pref) --
@@ -884,10 +973,11 @@ const CPA = (() => {
     }
 
     return {
-        SUBJECTS, LEVELS,
+        SUBJECTS, MASTERY_TOPIC_ID, MASTERY_PASS_THRESHOLD,
+        loadTopics, getAllTopics, getTopics, getTopic, addTopic, renameTopic, deleteTopic, isMasteryUnlocked,
         getAllQuestions, getQuestions, getQuestion, addQuestion, updateQuestion, deleteQuestion, getQuestionCounts,
         bulkAddQuestions, parseCSV,
-        buildExam,
+        buildExam, buildMasteryExam,
         getAllResults, saveResult, getResults, getBestScore, getStats,
         getSubjectBreakdown, getRecentResults, getWeakAreas, getTrendData, resetProgress,
         exportData, importData,
@@ -1116,7 +1206,7 @@ function renderDashboard(){
         <section class="hero container">
             <span class="eyebrow"><i class="fa-solid fa-stamp"></i> CPALE Preparation Platform</span>
             <h1>Prepare smarter.<br>Pass with <em>certainty</em>.</h1>
-            <p>Six subjects, three difficulty tiers, and a question bank you control. Work through Easy, Intermediate, and Hard sets the way the board actually tiers its exams.</p>
+            <p>Six subjects, admin-curated topics, and a Mastery Exam that unlocks once every topic is passed.</p>
             <div class="hero-actions">
                 <button class="btn btn-primary" id="startReviewBtn"><i class="fa-solid fa-play"></i> Start Reviewing</button>
                 <a class="btn btn-outline" onclick="location.hash='#/admin'"><i class="fa-solid fa-pen-ruler"></i> Manage Question Bank</a>
@@ -1126,7 +1216,7 @@ function renderDashboard(){
         <section class="section" id="subjectsSection">
             <div class="container">
                 <div class="section-head">
-                    <div><h2>Choose your subject</h2><p>Each subject holds exam permits across every difficulty tier — Easy through Mastery.</p></div>
+                    <div><h2>Choose your subject</h2><p>Work through each subject's topics, then unlock its Mastery Exam once every topic is passed.</p></div>
                 </div>
                 <div class="subject-grid" id="subjectGrid"></div>
             </div>
@@ -1162,6 +1252,8 @@ function renderDashboard(){
     const grid = document.getElementById('subjectGrid');
     CPA.SUBJECTS.forEach(s => {
         const counts = CPA.getQuestionCounts(s.id);
+        const topics = CPA.getTopics(s.id);
+        const masteryUnlocked = CPA.isMasteryUnlocked(s.id);
         const card = document.createElement('a');
         card.onclick = () => location.hash = `#/subject/${s.id}`;
         card.className = 'subject-card';
@@ -1170,7 +1262,11 @@ function renderDashboard(){
             <h3>${s.name}</h3>
             <p class="desc">${s.full}</p>
             <div class="levels-row">
-                ${CPA.LEVELS.map(l => `<span class="level-chip ${counts[l.id] ? 'done' : ''}">${l.label} · ${s.counts[l.id] === null ? counts[l.id] : `${counts[l.id]}/${s.counts[l.id]}`}</span>`).join('')}
+                ${topics.length
+                    ? topics.map(t => `<span class="level-chip ${counts[t.id] ? 'done' : ''}">${t.name} · ${counts[t.id] || 0}</span>`).join('')
+                    : `<span class="level-chip">No topics yet</span>`
+                }
+                <span class="level-chip ${masteryUnlocked ? 'done' : ''}"><i class="fa-solid ${masteryUnlocked ? 'fa-unlock' : 'fa-lock'}" style="font-size:10px;"></i> Mastery</span>
             </div>`;
         grid.appendChild(card);
     });
@@ -1256,7 +1352,7 @@ function buildWeakAreasHTML(weak){
     return `
         <div class="weak-areas-card">
             <h3><i class="fa-solid fa-triangle-exclamation"></i> Needs Review</h3>
-            <p>These tiers are still below the 75% passing mark, based on your best attempt so far. Tap one to jump back in.</p>
+            <p>These topics are still below the 75% passing mark, based on your best attempt so far. Tap one to jump back in.</p>
             <div class="weak-chip-list">
                 ${weak.map(w => `<span class="weak-chip" data-subject="${w.subject.id}" data-level="${w.level.id}">${w.subject.id} · ${w.level.label} · ${w.best}%</span>`).join('')}
             </div>
@@ -1267,23 +1363,31 @@ function buildSubjectBreakdownHTML(breakdown){
     return breakdown.map(b => {
         const avgClass = b.avg === null ? 'none' : scoreClass(b.avg);
         const avgLabel = b.avg === null ? 'No attempts' : b.avg + '%';
-        const levelsHtml = CPA.LEVELS.map(l => {
-            const lv = b.levels[l.id];
+        const levelsHtml = b.topics.map(t => {
+            const lv = b.levels[t.id];
             const pct = lv.best === null ? 0 : lv.best;
             const barColor = lv.best === null ? 'var(--paper-line)' : scoreColor(lv.best);
             const scoreLabel = lv.best === null ? 'Not tried' : lv.best + '%';
             return `<div class="sb-level-row">
-                <span class="sb-level-label">${l.label}</span>
+                <span class="sb-level-label">${t.name}</span>
                 <div class="sb-level-bar"><div class="sb-level-fill" style="width:${pct}%; background:${barColor};"></div></div>
                 <span class="sb-level-score">${scoreLabel}</span>
             </div>`;
         }).join('');
+        const masteryPct = b.masteryBest === null ? 0 : b.masteryBest;
+        const masteryColor = b.masteryBest === null ? 'var(--paper-line)' : scoreColor(b.masteryBest);
+        const masteryLabel = !b.masteryUnlocked ? 'Locked' : (b.masteryBest === null ? 'Not tried' : b.masteryBest + '%');
+        const masteryRow = `<div class="sb-level-row">
+            <span class="sb-level-label"><i class="fa-solid ${b.masteryUnlocked ? 'fa-unlock' : 'fa-lock'}" style="font-size:10px;"></i> Mastery</span>
+            <div class="sb-level-bar"><div class="sb-level-fill" style="width:${masteryPct}%; background:${masteryColor};"></div></div>
+            <span class="sb-level-score">${masteryLabel}</span>
+        </div>`;
         return `<div class="sb-card" data-subject="${b.subject.id}">
             <div class="sb-top">
                 <span class="sb-name">${b.subject.name}</span>
                 <span class="sb-avg ${avgClass}">${avgLabel}</span>
             </div>
-            <div class="sb-levels">${levelsHtml}</div>
+            <div class="sb-levels">${levelsHtml}${masteryRow}</div>
         </div>`;
     }).join('');
 }
@@ -1294,7 +1398,7 @@ function buildRecentActivityHTML(recent){
     }
     return recent.map(r => {
         const subj = CPA.SUBJECTS.find(s => s.id === r.subject);
-        const lvl = CPA.LEVELS.find(l => l.id === r.level);
+        const lvlLabel = r.level === CPA.MASTERY_TOPIC_ID ? 'Mastery Exam' : (CPA.getTopic(r.level) ? CPA.getTopic(r.level).name : r.level);
         const dur = r.durationSec || 0;
         const dateStr = new Date(r.date).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
         const timeStr = new Date(r.date).toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
@@ -1302,7 +1406,7 @@ function buildRecentActivityHTML(recent){
             <div class="ra-left">
                 <span class="ra-badge ${scoreClass(r.percentage)}">${r.percentage}%</span>
                 <div>
-                    <div class="ra-title">${subj ? subj.name : r.subject} · ${lvl ? lvl.label : r.level}</div>
+                    <div class="ra-title">${subj ? subj.name : r.subject} · ${lvlLabel}</div>
                     <div class="ra-meta">${r.score}/${r.total} correct · ${Math.floor(dur/60)}m ${dur%60}s</div>
                 </div>
             </div>
@@ -1329,22 +1433,33 @@ function renderSubjectSelect(subjectId){
     }
 
     const counts = CPA.getQuestionCounts(subject.id);
+    const topics = CPA.getTopics(subject.id);
+    const masteryUnlocked = CPA.isMasteryUnlocked(subject.id);
+    const unpassedTopics = topics.filter(t => {
+        const best = CPA.getBestScore(subject.id, t.id);
+        return best === null || best < CPA.MASTERY_PASS_THRESHOLD;
+    });
 
     app.innerHTML = `
         <div class="container">
             <div class="permit-header">
                 <a class="back-link" onclick="location.hash='#/'"><i class="fa-solid fa-arrow-left"></i> All subjects</a>
                 <h1>${subject.name} — ${subject.full}</h1>
-                <p>Choose a difficulty tier below. Each permit shows how many questions are loaded in the bank versus the exam target.</p>
+                <p>Take any topic in any order. Pass every one at ${CPA.MASTERY_PASS_THRESHOLD}%+ to unlock the Mastery Exam.</p>
             </div>
             <div class="permit-grid" id="permitGrid"></div>
         </div>`;
 
     const grid = document.getElementById('permitGrid');
-    CPA.LEVELS.forEach(level => {
-        const target = subject.counts[level.id];
-        const available = counts[level.id];
-        const best = CPA.getBestScore(subject.id, level.id);
+
+    if(!topics.length){
+        grid.innerHTML = `<div class="empty-state"><i class="fa-solid fa-inbox"></i><h3>No topics yet</h3><p>An admin hasn't added any topics for ${subject.name} yet.</p></div>`;
+        return;
+    }
+
+    topics.forEach(topic => {
+        const available = counts[topic.id] || 0;
+        const best = CPA.getBestScore(subject.id, topic.id);
         const canStart = available > 0;
 
         const el = document.createElement('div');
@@ -1352,40 +1467,71 @@ function renderSubjectSelect(subjectId){
         el.innerHTML = `
             <div class="permit-top">
                 <div>
-                    <div class="tier">${level.label} Tier</div>
-                    <h3>${level.label}</h3>
-                    <div class="qcount">${target === null ? `${available} question${available === 1 ? '' : 's'} ready · no limit` : `${Math.min(available, target)} / ${target} questions ready`}</div>
+                    <div class="tier">Topic</div>
+                    <h3>${topic.name}</h3>
+                    <div class="qcount">${available} question${available === 1 ? '' : 's'} ready · no limit</div>
                 </div>
                 ${best !== null ? `<span class="permit-stamp">Best ${best}%</span>` : ''}
             </div>
             <div class="permit-body">
-                <p style="color:var(--ink-soft); font-size:14px; line-height:1.6;">${level.desc}</p>
+                <p style="color:var(--ink-soft); font-size:14px; line-height:1.6;">${best !== null && best >= CPA.MASTERY_PASS_THRESHOLD ? 'Passed — counts toward Mastery Exam unlock.' : `Pass at ${CPA.MASTERY_PASS_THRESHOLD}%+ to help unlock the Mastery Exam.`}</p>
                 <div class="permit-stub"></div>
                 ${canStart
-                    ? `<button class="btn btn-primary btn-sm" style="justify-content:center;" onclick="location.hash='#/exam/${subject.id}/${level.id}'"><i class="fa-solid fa-file-pen"></i> Start ${level.label} Exam</button>`
-                    : `<div class="permit-locked"><i class="fa-solid fa-lock"></i> No questions yet in this tier — add some from the Question Bank.</div>
-                       <button class="btn btn-outline btn-sm" style="justify-content:center;" onclick="location.hash='#/admin/${subject.id}/${level.id}'"><i class="fa-solid fa-plus"></i> Add Questions</button>`
+                    ? `<button class="btn btn-primary btn-sm" style="justify-content:center;" onclick="location.hash='#/exam/${subject.id}/${topic.id}'"><i class="fa-solid fa-file-pen"></i> Start Topic Exam</button>`
+                    : `<div class="permit-locked"><i class="fa-solid fa-lock"></i> No questions yet in this topic — add some from the Question Bank.</div>
+                       <button class="btn btn-outline btn-sm" style="justify-content:center;" onclick="location.hash='#/admin/${subject.id}/${topic.id}'"><i class="fa-solid fa-plus"></i> Add Questions</button>`
                 }
             </div>`;
         grid.appendChild(el);
     });
+
+    // Mastery card, always shown last
+    const masteryEl = document.createElement('div');
+    masteryEl.className = 'permit';
+    const masteryBest = CPA.getBestScore(subject.id, CPA.MASTERY_TOPIC_ID);
+    masteryEl.innerHTML = `
+        <div class="permit-top">
+            <div>
+                <div class="tier">Capstone</div>
+                <h3><i class="fa-solid ${masteryUnlocked ? 'fa-unlock' : 'fa-lock'}"></i> Mastery Exam</h3>
+                <div class="qcount">Combines every topic in ${subject.name}</div>
+            </div>
+            ${masteryBest !== null ? `<span class="permit-stamp">Best ${masteryBest}%</span>` : ''}
+        </div>
+        <div class="permit-body">
+            <p style="color:var(--ink-soft); font-size:14px; line-height:1.6;">
+                ${masteryUnlocked
+                    ? 'All topics passed — this is your comprehensive, board-condition review.'
+                    : `Locked — pass all ${topics.length} topic${topics.length === 1 ? '' : 's'} at ${CPA.MASTERY_PASS_THRESHOLD}%+ to unlock. ${topics.length - unpassedTopics.length} of ${topics.length} passed.`
+                }
+            </p>
+            <div class="permit-stub"></div>
+            ${masteryUnlocked
+                ? `<button class="btn btn-primary btn-sm" style="justify-content:center;" onclick="location.hash='#/exam/${subject.id}/${CPA.MASTERY_TOPIC_ID}'"><i class="fa-solid fa-file-pen"></i> Start Mastery Exam</button>`
+                : `<div class="permit-locked"><i class="fa-solid fa-lock"></i> Still need: ${unpassedTopics.map(t => t.name).join(', ')}</div>`
+            }
+        </div>`;
+    grid.appendChild(masteryEl);
 }
 
 
 /* ================= EXAM ================= */
 function renderExam(subjectId, levelId){
     const subject = CPA.SUBJECTS.find(s => s.id === subjectId);
-    const level = CPA.LEVELS.find(l => l.id === levelId);
+    const isMastery = levelId === CPA.MASTERY_TOPIC_ID;
+    const topic = isMastery ? null : CPA.getTopic(levelId);
+    const level = isMastery ? { id:CPA.MASTERY_TOPIC_ID, label:'Mastery Exam' } : (topic ? { id:topic.id, label:topic.name } : null);
 
-    if(!subject || !level){
-        app.innerHTML = `<div class="exam-shell"><div class="empty-state"><i class="fa-solid fa-triangle-exclamation"></i><h3>Exam not found</h3><p>Check the link or start again from the dashboard.</p><button class="btn btn-primary" onclick="location.hash='#/'">Back to Dashboard</button></div></div>`;
+    if(!subject || !level || (isMastery && !CPA.isMasteryUnlocked(subjectId))){
+        const reason = (subject && isMastery) ? 'The Mastery Exam is still locked for this subject.' : 'Check the link or start again from the dashboard.';
+        app.innerHTML = `<div class="exam-shell"><div class="empty-state"><i class="fa-solid fa-triangle-exclamation"></i><h3>Exam not found</h3><p>${reason}</p><button class="btn btn-primary" onclick="location.hash='#/'">Back to Dashboard</button></div></div>`;
         return;
     }
 
     const { questions, target, available } = CPA.buildExam(subjectId, levelId);
 
     if(!questions.length){
-        app.innerHTML = `<div class="exam-shell"><div class="empty-state"><i class="fa-solid fa-inbox"></i><h3>No questions yet</h3><p>The ${level.label} tier for ${subject.name} is empty. Add questions in the Question Bank first.</p><button class="btn btn-primary" onclick="location.hash='#/admin/${subject.id}/${level.id}'">Go to Question Bank</button></div></div>`;
+        app.innerHTML = `<div class="exam-shell"><div class="empty-state"><i class="fa-solid fa-inbox"></i><h3>No questions yet</h3><p>${isMastery ? `No questions have been loaded across ${subject.name}'s topics yet.` : `The ${level.label} topic for ${subject.name} is empty. Add questions in the Question Bank first.`}</p>${isMastery ? '' : `<button class="btn btn-primary" onclick="location.hash='#/admin/${subject.id}/${level.id}'">Go to Question Bank</button>`}</div></div>`;
         return;
     }
 
@@ -1519,7 +1665,7 @@ function renderExam(subjectId, levelId){
                 <div class="result-verdict">${verdict(pct)}</div>
                 <div class="result-detail">${correct} of ${total} correct · ${subject.name} · ${level.label} · ${m}m ${s}s</div>
                 <div style="display:flex; gap:14px; justify-content:center; flex-wrap:wrap;">
-                    <button class="btn btn-outline" onclick="location.hash='#/subject/${subject.id}'"><i class="fa-solid fa-rotate-left"></i> Try Another Tier</button>
+                    <button class="btn btn-outline" onclick="location.hash='#/subject/${subject.id}'"><i class="fa-solid fa-rotate-left"></i> Try Another Topic</button>
                     <button class="btn btn-primary" onclick="location.hash='#/exam/${subject.id}/${level.id}'; router();"><i class="fa-solid fa-arrows-rotate"></i> Retake ${level.label}</button>
                 </div>
             </div>
@@ -1549,7 +1695,9 @@ function renderExam(subjectId, levelId){
 /* ================= ADMIN ================= */
 function renderAdmin(presetSubject, presetLevel){
     let activeSubject = presetSubject && CPA.SUBJECTS.some(s => s.id === presetSubject) ? presetSubject : CPA.SUBJECTS[0].id;
-    let activeLevel = presetLevel && CPA.LEVELS.some(l => l.id === presetLevel) ? presetLevel : 'easy';
+    let activeLevel = presetLevel && CPA.getTopic(presetLevel) && CPA.getTopic(presetLevel).subject === activeSubject
+        ? presetLevel
+        : (CPA.getTopics(activeSubject)[0] ? CPA.getTopics(activeSubject)[0].id : null);
     let editingId = null;
     let modalType = 'mcq';
 
@@ -1603,39 +1751,93 @@ function renderAdmin(presetSubject, presetLevel){
                 <i class="fa-solid ${s.icon}" style="width:18px;"></i> ${s.name}
             </div>`).join('');
         subjectListEl.querySelectorAll('.admin-subject-item').forEach(el => {
-            el.addEventListener('click', () => { activeSubject = el.dataset.sid; refreshAll(); });
+            el.addEventListener('click', () => {
+                activeSubject = el.dataset.sid;
+                const topics = CPA.getTopics(activeSubject);
+                activeLevel = topics.length ? topics[0].id : null;
+                refreshAll();
+            });
         });
+    }
+
+    async function handleAddTopic(){
+        const name = prompt(`New topic name for ${activeSubject}:`);
+        if(!name || !name.trim()) return;
+        try{
+            const topic = await CPA.addTopic(activeSubject, name.trim());
+            activeLevel = topic.id;
+            refreshAll();
+        }catch(e){
+            alert('Could not add topic: ' + (e.message || 'unknown error'));
+        }
+    }
+
+    async function handleDeleteTopic(topicId){
+        const topic = CPA.getTopic(topicId);
+        if(!topic) return;
+        const qCount = CPA.getQuestions(activeSubject, topicId).length;
+        if(!confirm(`Delete topic "${topic.name}"? This also deletes its ${qCount} question${qCount === 1 ? '' : 's'} and can't be undone.`)) return;
+        try{
+            await CPA.deleteTopic(topicId);
+            const remaining = CPA.getTopics(activeSubject);
+            activeLevel = remaining.length ? remaining[0].id : null;
+            refreshAll();
+        }catch(e){
+            alert('Could not delete topic: ' + (e.message || 'unknown error'));
+        }
     }
 
     function renderLevelTabs(){
         const counts = CPA.getQuestionCounts(activeSubject);
-        const subject = CPA.SUBJECTS.find(s => s.id === activeSubject);
-        levelTabsEl.innerHTML = CPA.LEVELS.map(l => `
-            <button class="level-tab ${l.id === activeLevel ? 'active' : ''}" data-lid="${l.id}">
-                ${l.label} <span class="count-badge">${subject.counts[l.id] === null ? counts[l.id] : `${counts[l.id]}/${subject.counts[l.id]}`}</span>
-            </button>`).join('');
-        levelTabsEl.querySelectorAll('.level-tab').forEach(el => {
-            el.addEventListener('click', () => { activeLevel = el.dataset.lid; refreshAll(); });
+        const topics = CPA.getTopics(activeSubject);
+        levelTabsEl.innerHTML = topics.map(t => `
+            <button class="level-tab ${t.id === activeLevel ? 'active' : ''}" data-lid="${t.id}">
+                ${t.name} <span class="count-badge">${counts[t.id] || 0}</span>
+                ${t.id === activeLevel ? `<i class="fa-solid fa-trash" data-del-topic="${t.id}" style="margin-left:8px; opacity:.6;" title="Delete topic"></i>` : ''}
+            </button>`).join('') + `<button class="level-tab" id="addTopicTab"><i class="fa-solid fa-plus"></i> Add Topic</button>`;
+        levelTabsEl.querySelectorAll('.level-tab[data-lid]').forEach(el => {
+            el.addEventListener('click', (e) => {
+                if(e.target.closest('[data-del-topic]')) return;
+                activeLevel = el.dataset.lid; refreshAll();
+            });
         });
+        levelTabsEl.querySelectorAll('[data-del-topic]').forEach(el => {
+            el.addEventListener('click', (e) => { e.stopPropagation(); handleDeleteTopic(el.dataset.delTopic); });
+        });
+        const addTab = document.getElementById('addTopicTab');
+        if(addTab) addTab.addEventListener('click', handleAddTopic);
     }
 
     function renderHeader(){
         const s = CPA.SUBJECTS.find(x => x.id === activeSubject);
         document.getElementById('mainSubjectTitle').textContent = s.name + ' — ' + s.full;
-        document.getElementById('mainSubjectDesc').textContent = 'Manage the Easy, Intermediate, Hard, and Mastery question tiers for this subject.';
+        document.getElementById('mainSubjectDesc').textContent = 'Add topics freely, then load questions into each one. The Mastery Exam unlocks automatically once every topic is passed.';
     }
 
     function renderQuestions(){
+        if(!activeLevel){
+            questionListEl.innerHTML = `
+                <div class="empty-state">
+                    <i class="fa-solid fa-layer-group"></i>
+                    <h3>No topics yet</h3>
+                    <p>Add the first topic for this subject before loading any questions.</p>
+                    <button class="btn btn-primary" id="emptyAddTopicBtn"><i class="fa-solid fa-plus"></i> Add Topic</button>
+                </div>`;
+            document.getElementById('emptyAddTopicBtn').addEventListener('click', handleAddTopic);
+            return;
+        }
+
         const term = searchInput.value.trim().toLowerCase();
         let qs = CPA.getQuestions(activeSubject, activeLevel);
         if(term) qs = qs.filter(q => q.question.toLowerCase().includes(term));
 
         if(!qs.length){
+            const topicName = CPA.getTopic(activeLevel) ? CPA.getTopic(activeLevel).name : 'this topic';
             questionListEl.innerHTML = `
                 <div class="empty-state">
                     <i class="fa-solid fa-inbox"></i>
                     <h3>No questions here yet</h3>
-                    <p>Add the first ${CPA.LEVELS.find(l=>l.id===activeLevel).label} question for this subject to unlock its exam permit, or bulk-import a whole batch at once.</p>
+                    <p>Add the first question to "${topicName}" to unlock its exam permit, or bulk-import a whole batch at once.</p>
                     <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
                         <button class="btn btn-outline" id="emptyBulkBtn"><i class="fa-solid fa-file-import"></i> Bulk Import</button>
                         <button class="btn btn-primary" id="emptyAddBtn"><i class="fa-solid fa-plus"></i> Add Question</button>
@@ -1684,6 +1886,7 @@ function renderAdmin(presetSubject, presetLevel){
     importFileInput.addEventListener('change', () => doImport(importFileInput));
 
     function openModal(id){
+        if(!activeLevel){ alert('Add a topic first, then you can add questions to it.'); return; }
         editingId = id || null;
         const existing = id ? CPA.getQuestion(id) : null;
         modalType = existing ? existing.type : 'mcq';
@@ -1805,7 +2008,7 @@ function renderAdmin(presetSubject, presetLevel){
                 <h3>Bulk Import Questions</h3>
                 <div class="bulk-help">
                     Upload or paste many questions at once instead of adding them one by one.
-                    Any row that doesn't specify its own <code>subject</code> / <code>level</code> will use the defaults below.
+                    Any row that doesn't specify its own <code>subject</code> / <code>topic</code> will use the defaults below.
                     <br><a id="downloadTemplateLink">Download a starter CSV template</a>
                 </div>
                 <div class="form-row">
@@ -1816,10 +2019,8 @@ function renderAdmin(presetSubject, presetLevel){
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Default Level</label>
-                        <select id="bulkDefaultLevel">
-                            ${CPA.LEVELS.map(l => `<option value="${l.id}" ${l.id === activeLevel ? 'selected' : ''}>${l.label}</option>`).join('')}
-                        </select>
+                        <label>Default Topic</label>
+                        <select id="bulkDefaultLevel"></select>
                     </div>
                 </div>
 
@@ -1829,8 +2030,8 @@ function renderAdmin(presetSubject, presetLevel){
                 </div>
 
                 <div id="bulkHelpText" class="bulk-help">
-                    CSV columns: <code>type</code>, <code>question</code>, <code>choiceA</code>, <code>choiceB</code>, <code>choiceC</code>, <code>choiceD</code>, <code>correct</code>, <code>answer</code>, <code>solution</code>, <code>explanation</code>, <code>subject</code>, <code>level</code>.
-                    Use <code>type=mcq</code> with choices + <code>correct</code> (A/B/C/D, or 1-4), or <code>type=problem</code> with <code>answer</code> (+ optional <code>solution</code>). <code>subject</code>/<code>level</code> columns are optional if you set defaults above.
+                    CSV columns: <code>type</code>, <code>question</code>, <code>choiceA</code>, <code>choiceB</code>, <code>choiceC</code>, <code>choiceD</code>, <code>correct</code>, <code>answer</code>, <code>solution</code>, <code>explanation</code>, <code>subject</code>, <code>topic</code>.
+                    Use <code>type=mcq</code> with choices + <code>correct</code> (A/B/C/D, or 1-4), or <code>type=problem</code> with <code>answer</code> (+ optional <code>solution</code>). <code>subject</code>/<code>topic</code> columns are optional if you set defaults above — <code>topic</code> must match an existing topic's name exactly.
                 </div>
 
                 <div class="bulk-drop" id="bulkDrop">
@@ -1854,6 +2055,17 @@ function renderAdmin(presetSubject, presetLevel){
             </div>`;
         document.body.appendChild(overlay);
 
+        const subjectSelect = overlay.querySelector('#bulkDefaultSubject');
+        const topicSelect = overlay.querySelector('#bulkDefaultLevel');
+        function refreshTopicOptions(){
+            const topics = CPA.getTopics(subjectSelect.value);
+            topicSelect.innerHTML = topics.length
+                ? topics.map(t => `<option value="${t.id}" ${t.id === activeLevel ? 'selected' : ''}>${t.name}</option>`).join('')
+                : `<option value="" disabled selected>No topics yet — add one first</option>`;
+        }
+        refreshTopicOptions();
+        subjectSelect.addEventListener('change', refreshTopicOptions);
+
         const dropZone = overlay.querySelector('#bulkDrop');
         const fileInput = overlay.querySelector('#bulkFileInput');
         const fileNameEl = overlay.querySelector('#bulkFileName');
@@ -1866,17 +2078,18 @@ function renderAdmin(presetSubject, presetLevel){
             overlay.querySelector('#bulkFormatCsv').classList.toggle('active', fmt === 'csv');
             overlay.querySelector('#bulkFormatJson').classList.toggle('active', fmt === 'json');
             helpTextEl.innerHTML = fmt === 'csv'
-                ? `CSV columns: <code>type</code>, <code>question</code>, <code>choiceA</code>, <code>choiceB</code>, <code>choiceC</code>, <code>choiceD</code>, <code>correct</code>, <code>answer</code>, <code>solution</code>, <code>explanation</code>, <code>subject</code>, <code>level</code>.
-                   Use <code>type=mcq</code> with choices + <code>correct</code> (A/B/C/D, or 1-4), or <code>type=problem</code> with <code>answer</code> (+ optional <code>solution</code>). <code>subject</code>/<code>level</code> columns are optional if you set defaults above.`
-                : `JSON: an array of objects, each with <code>type</code> ("mcq" or "problem"), <code>question</code>, and either <code>choices</code> (array) + <code>correctIndex</code> for MCQ, or <code>answer</code> (+ optional <code>solution</code>) for problem-solving. <code>subject</code>/<code>level</code> per item are optional if you set defaults above.`;
+                ? `CSV columns: <code>type</code>, <code>question</code>, <code>choiceA</code>, <code>choiceB</code>, <code>choiceC</code>, <code>choiceD</code>, <code>correct</code>, <code>answer</code>, <code>solution</code>, <code>explanation</code>, <code>subject</code>, <code>topic</code>.
+                   Use <code>type=mcq</code> with choices + <code>correct</code> (A/B/C/D, or 1-4), or <code>type=problem</code> with <code>answer</code> (+ optional <code>solution</code>). <code>subject</code>/<code>topic</code> columns are optional if you set defaults above — <code>topic</code> must match an existing topic's name exactly.`
+                : `JSON: an array of objects, each with <code>type</code> ("mcq" or "problem"), <code>question</code>, and either <code>choices</code> (array) + <code>correctIndex</code> for MCQ, or <code>answer</code> (+ optional <code>solution</code>) for problem-solving. <code>subject</code>/<code>topic</code> per item are optional if you set defaults above — <code>topic</code> must match an existing topic's name exactly.`;
         }
         overlay.querySelector('#bulkFormatCsv').addEventListener('click', () => setFormat('csv'));
         overlay.querySelector('#bulkFormatJson').addEventListener('click', () => setFormat('json'));
 
         overlay.querySelector('#downloadTemplateLink').addEventListener('click', () => {
-            const template = 'type,question,choiceA,choiceB,choiceC,choiceD,correct,answer,solution,explanation,subject,level\n' +
-                'mcq,"Which financial statement reports a company\'s assets, liabilities, and equity?","Income Statement","Balance Sheet","Statement of Cash Flows","Statement of Retained Earnings",B,,,"The balance sheet shows financial position at a point in time.",FAR,easy\n' +
-                'problem,"A company has assets of 500,000 and liabilities of 200,000. What is total equity?",,,,, ,300000,"Equity = Assets - Liabilities = 500,000 - 200,000",,FAR,easy\n';
+            const exampleTopic = topicSelect.value || 'Replace with an existing topic name';
+            const template = 'type,question,choiceA,choiceB,choiceC,choiceD,correct,answer,solution,explanation,subject,topic\n' +
+                `mcq,"Which financial statement reports a company's assets, liabilities, and equity?","Income Statement","Balance Sheet","Statement of Cash Flows","Statement of Retained Earnings",B,,,"The balance sheet shows financial position at a point in time.",${subjectSelect.value},"${exampleTopic}"\n` +
+                `problem,"A company has assets of 500,000 and liabilities of 200,000. What is total equity?",,,,, ,300000,"Equity = Assets - Liabilities = 500,000 - 200,000",,${subjectSelect.value},"${exampleTopic}"\n`;
             const blob = new Blob([template], { type:'text/csv' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
