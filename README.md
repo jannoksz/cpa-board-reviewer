@@ -12,21 +12,28 @@ A single-page web application for reviewing CPA board exam questions. Designed t
 
   * FAR, AFAR, Management Services, Auditing, Taxation, RFBT
 
-* 🎯 **4 Difficulty Levels**
+* 🗂️ **Admin-Defined Topics per Subject**
 
-  * Easy, Intermediate, Hard, Mastery
+  * Each subject is broken down into topics (e.g. specific FAR chapters) that the admin creates, renames, or removes from the admin panel — there's no fixed set of difficulty tiers anymore
+  * Every topic gets its own exam pulling from all questions filed under that topic
+
+* 🔒 **Gated Mastery Exam**
+
+  * Each subject also has a Mastery Exam — a comprehensive review pulling from every question across every topic in that subject
+  * The Mastery Exam stays locked until the reviewer has **passed every topic in the subject at least once** (best score ≥ 75%)
+  * Once unlocked, Mastery draws its questions from the full subject-wide pool rather than a single topic
 
 * 📝 **Exam Mode**
 
   * Questions are derived from curated and trusted materials from established CPA review centers (non-randomized)
-  * Admin-controlled configuration of the number of questions per exam
+  * Every topic exam (and Mastery) uses all questions currently filed under it — no fixed question-count cap
   * Automatic scoring and result evaluation after submission
 
 * 📊 **Performance Dashboard**
 
   * Exams taken
   * Average and highest score
-  * Subject breakdown
+  * Subject breakdown, now organized by topic, plus Mastery's own best score/attempt count and unlock status
   * Weak areas (below passing threshold)
   * Score trends over time
 
@@ -42,9 +49,10 @@ A single-page web application for reviewing CPA board exam questions. Designed t
 
 * 🛠️ **Admin Tools**
 
-  * Add, edit, delete questions
+  * Create, rename, and delete topics per subject
+  * Add, edit, delete questions (filed under a topic)
   * Supports MCQ and problem-solving types
-  * Bulk import (CSV/JSON) with validation
+  * Bulk import (CSV/JSON) with validation — rows reference a topic by id or name
 
 * 🌙 **Dark Mode**
 
@@ -151,8 +159,9 @@ Handled via **Supabase Auth**:
 
 All core data is stored in Supabase:
 
-* Question bank
-* Exam results
+* Topics (per subject)
+* Question bank (each question filed under a topic)
+* Exam results (topic id, or the reserved Mastery id, per attempt)
 * User profiles
 
 This enables:
