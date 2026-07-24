@@ -15,10 +15,21 @@ const CPA = (() => {
     };
 
     // ---- Supabase client + auth ----------------------------------------
-    const supabaseClient = supabase.createClient(
-        'https://skosmgyicuwvlybkqdal.supabase.co',
-        'sb_publishable_scCLt7VTNyIR-q8QDRPpxQ_4xMubH2Z'
-    );
+    // Load credentials from window.CONFIG (set via config.local.js or GitHub Secrets)
+    // Fallback to empty values to prevent crashes, but will show auth error
+    const supabaseUrl = window.CONFIG?.SUPABASE_URL || '';
+    const supabaseKey = window.CONFIG?.SUPABASE_ANON_KEY || '';
+
+    if (!supabaseUrl || !supabaseKey) {
+        console.error(
+            '[CPA] ⚠️ Supabase credentials missing!\n' +
+            'For local development: Copy config.local.js.example to config.local.js and fill in your credentials.\n' +
+            'For GitHub Pages: Set SUPABASE_URL and SUPABASE_ANON_KEY as repository secrets, then rebuild.\n' +
+            'See SECURITY.md for details.'
+        );
+    }
+
+    const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
     let _user = null;      // { id, email } once logged in
     let _profile = null;   // { id, display_name, is_admin }

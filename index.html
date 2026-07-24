@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- ⚠️ SECURITY: Load local config (credentials) before CPA module -->
+<script src="config.local.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CPA Board Reviewer</title>
@@ -394,10 +396,24 @@ const CPA = (() => {
     };
 
     // ---- Supabase client + auth ----------------------------------------
-    const supabaseClient = supabase.createClient(
-        'https://skosmgyicuwvlybkqdal.supabase.co',
-        'sb_publishable_scCLt7VTNyIR-q8QDRPpxQ_4xMubH2Z'
-    );
+    // Load credentials from window.CONFIG (set via config.local.js for local dev)
+    // Fallback to empty values to prevent crashes, but will show auth error
+    const supabaseUrl = window.CONFIG?.SUPABASE_URL || '';
+    const supabaseKey = window.CONFIG?.SUPABASE_ANON_KEY || '';
+
+    if (!supabaseUrl || !supabaseKey) {
+        console.error(
+            '[CPA] ⚠️ Supabase credentials missing!\n' +
+            'For local development: Create config.local.js with:\n' +
+            '  window.CONFIG = {\n' +
+            '    SUPABASE_URL: "YOUR_SUPABASE_URL",\n' +
+            '    SUPABASE_ANON_KEY: "YOUR_ANON_KEY"\n' +
+            '  };\n' +
+            'For GitHub Pages: See the SECURITY.md file for GitHub Actions setup.\n'
+        );
+    }
+
+    const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
     let _user = null;      // { id, email } once logged in
     let _profile = null;   // { id, display_name, is_admin }
