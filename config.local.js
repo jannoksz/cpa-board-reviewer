@@ -21,7 +21,7 @@ if (!window.CONFIG) {
     window.CONFIG = {
         // Populated by GitHub Actions workflow from secrets
         SUPABASE_URL: 'https://skosmgyicuwvlybkqdal.supabase.co',
-        SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNrb3NtZ3lpY3V3dmx5YmtxZGFsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM3MDI5NDAsImV4cCI6MjA5OTI3ODk0MH0.smlfjA2Obvhzb-0rwYDEsHA3nSVd3nUgK6zoiCR50wsb_publishable_scCLt7VTNyIR-q8QDRPpxQ_4xMubH2Z'
+        SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNrb3NtZ3lpY3V3dmx5YmtxZGFsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM3MDI5NDAsImV4cCI6MjA5OTI3ODk0MH0.smlfjA2Obvhzb-0rwYDEsHA3nSVd3nUgK6zoiCR50ws'
     };
 }
 
