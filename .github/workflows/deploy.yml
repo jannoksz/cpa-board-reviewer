@@ -1,0 +1,53 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Inject Supabase credentials
+        run: |
+          cat > config.local.js << 'EOF'
+          /**
+           * 🔒 SECURITY: Supabase credentials injected by GitHub Actions
+           * These are set via GitHub Secrets and not exposed in source control
+           */
+          
+          if (!window.CONFIG) {
+              window.CONFIG = {
+                  SUPABASE_URL: '${{ secrets.SUPABASE_URL }}',
+                  SUPABASE_ANON_KEY: '${{ secrets.SUPABASE_ANON_KEY }}'
+              };
+          }
+          EOF
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v3
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2
