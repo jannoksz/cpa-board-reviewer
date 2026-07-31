@@ -2,361 +2,16 @@
 <html lang="en">
 <head>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- ⚠️ SECURITY: Load local config (credentials) before CPA module -->
+<script src="config.local.js"></script>
+<!-- 🔒 SECURITY: DOMPurify for XSS prevention -->
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CPA Board Reviewer</title>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-<style>
-/* ============================================================
-   CPA Board Reviewer — Design System
-   Direction: "Examiner's Desk" — deep navy + brass seal accent,
-   serif headings (certificate feel), mono for scores/figures.
-   ============================================================ */
-
-* { margin: 0; padding: 0; box-sizing: border-box; }
-html { scroll-behavior: smooth; }
-
-:root{
-    --navy-950:#0A1930;
-    --navy-900:#0F2A4A;
-    --navy-800:#163A63;
-    --navy-700:#1E4B8F;
-    --navy-600:#2B5FAE;
-
-    --brass:#B08D57;
-    --brass-light:#D9C08F;
-    --brass-dark:#8A6D3F;
-
-    --paper:#F6F4EE;
-    --paper-line:#E4E0D3;
-    --card:#FFFFFF;
-
-    --ink:#1B2430;
-    --ink-soft:#5B6472;
-    --ink-faint:#8A93A0;
-
-    --good:#2E7D5B;
-    --good-bg:#E6F2EC;
-    --bad:#B0473E;
-    --bad-bg:#F7E9E7;
-    --warn:#B08D57;
-
-    --radius-lg:20px;
-    --radius-md:14px;
-    --radius-sm:9px;
-    --shadow-card:0 1px 2px rgba(15,42,74,.06), 0 12px 28px rgba(15,42,74,.08);
-    --shadow-hover:0 4px 10px rgba(15,42,74,.10), 0 20px 40px rgba(15,42,74,.14);
-
-    --font-display:'Fraunces', serif;
-    --font-body:'Inter', sans-serif;
-    --font-mono:'IBM Plex Mono', monospace;
-}
-
-body.dark{
-    --navy-950:#050D1A;
-    --paper:#0B1524;
-    --paper-line:#1C2A3E;
-    --card:#101E33;
-    --ink:#E7EAEF;
-    --ink-soft:#9AA7B8;
-    --ink-faint:#67748A;
-    --good-bg:#123425;
-    --bad-bg:#3A1815;
-}
-
-body{
-    font-family:var(--font-body);
-    background:var(--paper);
-    color:var(--ink);
-    transition:background .3s, color .3s;
-    min-height:100vh;
-    background-image:linear-gradient(var(--paper-line) 1px, transparent 1px);
-    background-size: 100% 42px;
-    background-attachment: local;
-}
-
-.container{ max-width:1180px; margin:0 auto; padding:0 32px; }
-a{ color:inherit; }
-
-/* ---------------- Top Bar ---------------- */
-.topbar{
-    position:sticky; top:0; z-index:999;
-    background:var(--navy-900); color:#fff;
-    display:flex; align-items:center; justify-content:space-between;
-    padding:18px 32px; box-shadow:0 6px 20px rgba(0,0,0,.18);
-}
-.topbar .brand{ display:flex; align-items:center; gap:12px; font-family:var(--font-display); font-size:22px; font-weight:600; letter-spacing:.2px; cursor:pointer; }
-.topbar .brand .seal{ width:34px; height:34px; border-radius:50%; border:1.5px solid var(--brass-light); display:flex; align-items:center; justify-content:center; color:var(--brass-light); font-size:15px; background:rgba(176,141,87,.12); }
-.topbar nav{ display:flex; gap:30px; align-items:center; }
-.topbar nav a{ text-decoration:none; color:#CBD6E6; font-weight:500; font-size:14.5px; letter-spacing:.2px; transition:color .2s; cursor:pointer; }
-.topbar nav a:hover, .topbar nav a.active{ color:#fff; }
-.topbar-actions{ display:flex; align-items:center; gap:14px; }
-
-.icon-btn{ width:42px; height:42px; border-radius:50%; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.06); color:#fff; cursor:pointer; font-size:15px; display:flex; align-items:center; justify-content:center; transition:.2s; }
-.icon-btn:hover{ background:var(--brass); border-color:var(--brass); color:var(--navy-950); }
-
-.user-chip{ display:flex; align-items:center; gap:10px; padding:8px 14px 8px 8px; border-radius:30px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14); cursor:pointer; transition:.2s; }
-.user-chip:hover{ background:rgba(255,255,255,.12); }
-.user-chip .avatar{ width:26px; height:26px; border-radius:50%; background:var(--brass); color:var(--navy-950); display:flex; align-items:center; justify-content:center; font-family:var(--font-mono); font-weight:600; font-size:12px; flex-shrink:0; }
-.user-chip span{ font-size:13.5px; font-weight:600; color:#EAF0F8; }
-
-/* ---------------- Buttons ---------------- */
-.btn{ display:inline-flex; align-items:center; gap:10px; font-family:var(--font-body); font-weight:600; font-size:15px; padding:14px 28px; border-radius:12px; border:none; cursor:pointer; transition:transform .18s ease, box-shadow .18s ease, background .18s ease; }
-.btn-primary{ background:var(--navy-900); color:#fff; box-shadow:var(--shadow-card); }
-.btn-primary:hover{ background:var(--navy-800); transform:translateY(-2px); box-shadow:var(--shadow-hover); }
-.btn-brass{ background:var(--brass); color:var(--navy-950); box-shadow:var(--shadow-card); }
-.btn-brass:hover{ background:var(--brass-dark); color:#fff; transform:translateY(-2px); }
-.btn-outline{ background:transparent; color:var(--navy-900); border:1.5px solid var(--navy-900); }
-.btn-outline:hover{ background:var(--navy-900); color:#fff; }
-body.dark .btn-outline{ color:#E7EAEF; border-color:#3A4A63; }
-.btn-danger{ background:var(--bad-bg); color:var(--bad); border:1.5px solid rgba(176,71,62,.3); }
-.btn-danger:hover{ background:var(--bad); color:#fff; }
-.btn-sm{ padding:9px 16px; font-size:13.5px; border-radius:9px; }
-.btn:disabled{ opacity:.45; cursor:not-allowed; transform:none !important; }
-
-/* ---------------- Hero ---------------- */
-.hero{ padding:86px 0 64px; }
-.hero .eyebrow{ display:inline-flex; align-items:center; gap:8px; font-family:var(--font-mono); font-size:12.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--brass-dark); background:rgba(176,141,87,.12); border:1px solid rgba(176,141,87,.35); padding:8px 16px; border-radius:30px; margin-bottom:28px; }
-.hero h1{ font-family:var(--font-display); font-weight:600; font-size:58px; line-height:1.12; letter-spacing:-.5px; max-width:780px; }
-.hero h1 em{ font-style:italic; color:var(--navy-700); }
-body.dark .hero h1 em{ color:var(--brass-light); }
-.hero p{ margin-top:22px; font-size:18px; line-height:1.75; color:var(--ink-soft); max-width:600px; }
-.hero-actions{ display:flex; gap:16px; margin-top:40px; flex-wrap:wrap; }
-
-/* ---------------- Section headers ---------------- */
-.section-head{ display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:34px; gap:20px; flex-wrap:wrap; }
-.section-head h2{ font-family:var(--font-display); font-size:32px; font-weight:600; }
-.section-head p{ color:var(--ink-soft); margin-top:6px; font-size:15px; }
-.section{ padding:64px 0; }
-
-/* ---------------- Subject grid / cards ---------------- */
-.subject-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:24px; }
-.subject-card{ background:var(--card); border-radius:var(--radius-lg); padding:30px 30px 26px; cursor:pointer; text-decoration:none; color:var(--ink); box-shadow:var(--shadow-card); border:1px solid rgba(15,42,74,.06); transition:transform .25s ease, box-shadow .25s ease, border-color .25s ease; display:flex; flex-direction:column; gap:16px; position:relative; overflow:hidden; }
-body.dark .subject-card{ border-color:rgba(255,255,255,.06); }
-.subject-card:hover{ transform:translateY(-6px); box-shadow:var(--shadow-hover); border-color:var(--brass); }
-.subject-card .code-row{ display:flex; align-items:center; justify-content:space-between; }
-.subject-card .code{ font-family:var(--font-mono); font-weight:600; font-size:13px; letter-spacing:.1em; color:var(--navy-700); background:rgba(30,75,143,.08); padding:6px 12px; border-radius:20px; }
-body.dark .subject-card .code{ color:var(--brass-light); background:rgba(176,141,87,.12); }
-.subject-card .card-icon{ font-size:26px; color:var(--brass-dark); }
-.subject-card h3{ font-family:var(--font-display); font-size:23px; font-weight:600; }
-.subject-card .desc{ color:var(--ink-soft); font-size:14.5px; line-height:1.6; min-height:44px; }
-.subject-card .levels-row{ display:flex; gap:8px; margin-top:auto; flex-wrap:wrap; }
-.level-chip{ font-family:var(--font-mono); font-size:11.5px; font-weight:600; padding:6px 10px; border-radius:7px; letter-spacing:.02em; background:var(--paper-line); color:var(--ink-soft); }
-.level-chip.done{ background:var(--good-bg); color:var(--good); }
-
-/* ---------------- Stats ---------------- */
-.stats-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:22px; }
-.stat-card{ background:var(--card); border-radius:var(--radius-lg); padding:30px; box-shadow:var(--shadow-card); text-align:left; border-left:4px solid var(--brass); }
-.stat-card .label{ font-size:13px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.08em; font-weight:600; }
-.stat-card .value{ font-family:var(--font-mono); font-size:38px; font-weight:600; margin-top:10px; color:var(--navy-900); }
-body.dark .stat-card .value{ color:#fff; }
-
-/* ---------------- Detailed progress ---------------- */
-.progress-subhead{ font-family:var(--font-display); font-size:22px; font-weight:600; margin-bottom:4px; }
-.progress-subdesc{ color:var(--ink-soft); font-size:14px; margin-bottom:20px; }
-.progress-trend{ background:var(--card); border-radius:var(--radius-lg); padding:30px; box-shadow:var(--shadow-card); margin-bottom:28px; }
-.trend-empty{ text-align:center; padding:36px 20px; color:var(--ink-soft); font-size:14.5px; }
-
-.weak-areas-card{ background:var(--bad-bg); border:1px solid rgba(176,71,62,.25); border-radius:var(--radius-lg); padding:24px 26px; margin-bottom:28px; }
-.weak-areas-card h3{ font-family:var(--font-display); font-size:18px; color:var(--bad); margin-bottom:6px; display:flex; align-items:center; gap:8px; }
-.weak-areas-card p{ font-size:13.5px; color:var(--ink-soft); margin-bottom:14px; }
-.weak-chip-list{ display:flex; flex-wrap:wrap; gap:8px; }
-.weak-chip{ background:var(--card); border:1px solid rgba(176,71,62,.3); border-radius:20px; padding:8px 14px; font-size:12.5px; font-weight:600; color:var(--bad); font-family:var(--font-mono); cursor:pointer; transition:.15s; }
-.weak-chip:hover{ background:var(--bad); color:#fff; }
-
-.subject-breakdown-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:18px; margin-bottom:28px; }
-.sb-card{ background:var(--card); border-radius:16px; padding:22px 24px; box-shadow:var(--shadow-card); cursor:pointer; transition:transform .2s ease, box-shadow .2s ease; border:1px solid rgba(15,42,74,.06); }
-body.dark .sb-card{ border-color:rgba(255,255,255,.06); }
-.sb-card:hover{ transform:translateY(-4px); box-shadow:var(--shadow-hover); }
-.sb-top{ display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
-.sb-name{ font-family:var(--font-display); font-size:17px; font-weight:600; }
-.sb-avg{ font-family:var(--font-mono); font-weight:600; font-size:13px; padding:5px 11px; border-radius:8px; }
-.sb-avg.good{ background:var(--good-bg); color:var(--good); }
-.sb-avg.warn{ background:rgba(176,141,87,.15); color:var(--brass-dark); }
-.sb-avg.bad{ background:var(--bad-bg); color:var(--bad); }
-.sb-avg.none{ background:var(--paper-line); color:var(--ink-faint); }
-.sb-levels{ display:flex; flex-direction:column; gap:10px; }
-.sb-level-row{ display:flex; align-items:center; gap:10px; font-size:12.5px; }
-.sb-level-label{ width:88px; color:var(--ink-soft); font-weight:600; flex-shrink:0; }
-.sb-level-bar{ flex:1; height:8px; border-radius:6px; background:var(--paper-line); overflow:hidden; }
-.sb-level-fill{ height:100%; border-radius:6px; transition:width .3s ease; }
-.sb-level-score{ font-family:var(--font-mono); font-size:11.5px; color:var(--ink-soft); width:64px; text-align:right; flex-shrink:0; }
-
-.recent-activity-list{ display:flex; flex-direction:column; gap:10px; margin-bottom:8px; }
-.ra-row{ display:flex; align-items:center; justify-content:space-between; background:var(--card); border-radius:12px; padding:14px 18px; box-shadow:var(--shadow-card); gap:14px; flex-wrap:wrap; }
-.ra-left{ display:flex; align-items:center; gap:14px; }
-.ra-badge{ font-family:var(--font-mono); font-weight:600; font-size:14.5px; padding:8px 12px; border-radius:10px; min-width:52px; text-align:center; }
-.ra-badge.good{ background:var(--good-bg); color:var(--good); }
-.ra-badge.warn{ background:rgba(176,141,87,.15); color:var(--brass-dark); }
-.ra-badge.bad{ background:var(--bad-bg); color:var(--bad); }
-.ra-title{ font-weight:600; font-size:14px; }
-.ra-meta{ font-size:12px; color:var(--ink-soft); margin-top:2px; }
-.ra-date{ font-family:var(--font-mono); font-size:11.5px; color:var(--ink-faint); white-space:nowrap; }
-
-/* ---------------- Exam Permit ---------------- */
-.permit-header{ padding:64px 0 20px; }
-.permit-header .back-link{ display:inline-flex; align-items:center; gap:8px; color:var(--ink-soft); text-decoration:none; font-size:14px; font-weight:600; margin-bottom:24px; cursor:pointer; }
-.permit-header .back-link:hover{ color:var(--navy-900); }
-.permit-header h1{ font-family:var(--font-display); font-size:42px; font-weight:600; }
-.permit-header p{ color:var(--ink-soft); margin-top:10px; font-size:16px; max-width:600px; }
-.permit-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:28px; padding-bottom:80px; }
-.permit{ position:relative; background:var(--card); border-radius:var(--radius-md); box-shadow:var(--shadow-card); padding:0; overflow:hidden; border:1px solid rgba(15,42,74,.08); transition:transform .25s ease, box-shadow .25s ease; }
-body.dark .permit{ border-color:rgba(255,255,255,.07); }
-.permit:hover{ transform:translateY(-5px); box-shadow:var(--shadow-hover); }
-.permit-top{ background:var(--navy-900); color:#fff; padding:22px 26px; display:flex; justify-content:space-between; align-items:flex-start; }
-.permit-top .tier{ font-family:var(--font-mono); font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--brass-light); }
-.permit-top h3{ font-family:var(--font-display); font-size:24px; font-weight:600; margin-top:6px; }
-.permit-top .qcount{ font-family:var(--font-mono); font-size:13px; color:#CBD6E6; margin-top:8px; }
-.permit-body{ padding:22px 26px 26px; border-top:1px dashed var(--paper-line); display:flex; flex-direction:column; gap:16px; }
-.permit-stub{ background:repeating-linear-gradient(90deg, var(--paper-line) 0 8px, transparent 8px 16px); height:1px; margin:2px 0; }
-.permit-stamp{ font-family:var(--font-mono); font-size:11px; font-weight:600; letter-spacing:.08em; color:var(--brass-dark); border:1.5px solid var(--brass); border-radius:6px; padding:5px 10px; transform:rotate(-4deg); display:inline-block; text-transform:uppercase; }
-.permit-locked{ color:var(--ink-faint); font-size:13.5px; font-style:italic; }
-
-/* ---------------- Empty state ---------------- */
-.empty-state{ text-align:center; padding:70px 30px; background:var(--card); border-radius:var(--radius-lg); border:1.5px dashed var(--paper-line); }
-.empty-state i{ font-size:38px; color:var(--brass); margin-bottom:18px; }
-.empty-state h3{ font-family:var(--font-display); font-size:22px; margin-bottom:8px; }
-.empty-state p{ color:var(--ink-soft); font-size:14.5px; max-width:420px; margin:0 auto 20px; }
-
-/* ---------------- Auth screens ---------------- */
-.auth-shell{ min-height:calc(100vh - 74px); display:flex; align-items:center; justify-content:center; padding:40px 20px; }
-.auth-card{ background:var(--card); border-radius:var(--radius-lg); box-shadow:var(--shadow-card); padding:44px 40px; max-width:420px; width:100%; text-align:center; }
-.auth-card .seal-lg{ width:56px; height:56px; border-radius:50%; border:1.5px solid var(--brass); display:flex; align-items:center; justify-content:center; color:var(--brass-dark); font-size:22px; background:rgba(176,141,87,.1); margin:0 auto 20px; }
-.auth-card h2{ font-family:var(--font-display); font-size:26px; font-weight:600; margin-bottom:8px; }
-.auth-card p{ color:var(--ink-soft); font-size:14.5px; line-height:1.6; margin-bottom:26px; }
-.auth-card input{ width:100%; padding:14px 16px; border-radius:10px; border:1.5px solid var(--paper-line); font-family:var(--font-body); font-size:15px; background:var(--paper); color:var(--ink); text-align:center; margin-bottom:16px; }
-.auth-card input:focus{ outline:2px solid var(--navy-700); outline-offset:2px; }
-.auth-card .btn{ width:100%; justify-content:center; }
-.auth-error{ color:var(--bad); font-size:13.5px; margin:-8px 0 16px; min-height:0; }
-.auth-switch{ margin-top:18px; font-size:13px; color:var(--ink-faint); }
-.auth-switch a{ color:var(--navy-700); font-weight:600; cursor:pointer; text-decoration:underline; }
-body.dark .auth-switch a{ color:var(--brass-light); }
-
-/* ---------------- Password field with show/hide toggle ---------------- */
-.password-field{ position:relative; margin-bottom:16px; }
-.password-field input{ margin-bottom:0; padding-right:46px; padding-left:46px; }
-.password-toggle-btn{ position:absolute; top:50%; right:6px; transform:translateY(-50%); width:34px; height:34px; border:none; background:transparent; cursor:pointer; color:var(--ink-faint); font-size:15px; display:flex; align-items:center; justify-content:center; border-radius:8px; transition:.15s; }
-.password-toggle-btn:hover{ color:var(--ink); background:var(--paper-line); }
-.password-toggle-btn:focus-visible{ outline:2px solid var(--navy-700); outline-offset:2px; }
-
-/* ---------------- Exam interface ---------------- */
-.exam-shell{ max-width:820px; margin:0 auto; padding:48px 24px 100px; }
-.exam-progress-bar{ height:6px; background:var(--paper-line); border-radius:10px; overflow:hidden; margin-bottom:10px; }
-.exam-progress-fill{ height:100%; background:var(--brass); transition:width .3s ease; }
-.exam-meta{ display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:13px; color:var(--ink-soft); margin-bottom:34px; }
-.exam-timer{ font-weight:600; color:var(--navy-900); }
-body.dark .exam-timer{ color:var(--brass-light); }
-.question-card{ background:var(--card); border-radius:var(--radius-lg); padding:38px 36px; box-shadow:var(--shadow-card); }
-.q-tag{ font-family:var(--font-mono); font-size:12px; color:var(--brass-dark); text-transform:uppercase; letter-spacing:.1em; margin-bottom:14px; display:block; }
-.q-text{ font-size:19px; line-height:1.65; font-weight:500; margin-bottom:28px; }
-.choice-list{ display:flex; flex-direction:column; gap:12px; }
-.choice{ display:flex; align-items:center; gap:14px; padding:16px 18px; border-radius:12px; border:1.5px solid var(--paper-line); cursor:pointer; transition:.18s; font-size:15.5px; }
-.choice:hover{ border-color:var(--navy-600); }
-.choice.selected{ border-color:var(--navy-900); background:rgba(30,75,143,.06); font-weight:600; }
-.choice .letter{ width:28px; height:28px; border-radius:8px; background:var(--paper-line); display:flex; align-items:center; justify-content:center; font-family:var(--font-mono); font-weight:600; font-size:13px; flex-shrink:0; }
-.choice.selected .letter{ background:var(--navy-900); color:#fff; }
-.problem-answer-box textarea, .problem-answer-box input{ width:100%; padding:16px; border-radius:12px; border:1.5px solid var(--paper-line); font-family:var(--font-body); font-size:15px; resize:vertical; background:transparent; color:var(--ink); }
-.problem-answer-box textarea:focus, .problem-answer-box input:focus, .choice:focus-visible{ outline:2px solid var(--navy-700); outline-offset:2px; }
-.exam-nav{ display:flex; justify-content:space-between; align-items:center; margin-top:30px; gap:14px; flex-wrap:wrap; }
-.exam-nav-hint{ font-size:12.5px; color:var(--ink-faint); font-style:italic; }
-
-/* ---------------- Results ---------------- */
-.result-shell{ max-width:640px; margin:60px auto; text-align:center; }
-.result-ring{ width:180px; height:180px; margin:0 auto 30px; position:relative; }
-.result-ring .pct{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; }
-.result-ring .pct .num{ font-family:var(--font-mono); font-size:40px; font-weight:600; }
-.result-ring .pct .cap{ font-size:12px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.08em; }
-.result-verdict{ font-family:var(--font-display); font-size:28px; font-weight:600; margin-bottom:8px; }
-.result-detail{ color:var(--ink-soft); margin-bottom:36px; }
-.review-list{ text-align:left; display:flex; flex-direction:column; gap:14px; margin-top:20px; }
-.review-item{ background:var(--card); border-radius:14px; padding:20px 22px; border-left:4px solid var(--paper-line); }
-.review-item.correct{ border-left-color:var(--good); }
-.review-item.incorrect{ border-left-color:var(--bad); }
-.review-item .rq{ font-weight:600; margin-bottom:8px; }
-.review-item .ra{ font-size:14px; color:var(--ink-soft); }
-.review-item .ra b.correct-text{ color:var(--good); }
-.review-item .ra b.wrong-text{ color:var(--bad); }
-
-/* ---------------- Admin ---------------- */
-.admin-shell{ display:grid; grid-template-columns:280px 1fr; gap:0; min-height:calc(100vh - 74px); }
-.admin-sidebar{ background:var(--card); border-right:1px solid var(--paper-line); padding:30px 20px; }
-.admin-sidebar h4{ font-size:12px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-faint); margin:18px 10px 10px; }
-.admin-subject-item{ display:flex; align-items:center; gap:10px; padding:12px 14px; border-radius:10px; cursor:pointer; margin-bottom:4px; font-weight:500; font-size:14.5px; color:var(--ink-soft); }
-.admin-subject-item:hover{ background:var(--paper); }
-.admin-subject-item.active{ background:var(--navy-900); color:#fff; }
-.admin-main{ padding:34px 40px; }
-.level-tabs{ display:flex; gap:8px; margin-bottom:28px; flex-wrap:wrap; }
-.level-tab{ padding:10px 20px; border-radius:10px; border:1.5px solid var(--paper-line); background:transparent; cursor:pointer; font-weight:600; font-size:13.5px; color:var(--ink-soft); font-family:var(--font-body); }
-.level-tab.active{ background:var(--navy-900); border-color:var(--navy-900); color:#fff; }
-.level-tab .count-badge{ font-family:var(--font-mono); margin-left:6px; opacity:.75; }
-.qb-toolbar{ display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; gap:16px; flex-wrap:wrap; }
-.qb-search{ flex:1; min-width:200px; padding:11px 16px; border-radius:10px; border:1.5px solid var(--paper-line); background:var(--card); color:var(--ink); font-family:var(--font-body); }
-.question-row{ background:var(--card); border-radius:14px; padding:20px 22px; box-shadow:var(--shadow-card); margin-bottom:12px; }
-.question-row .qr-top{ display:flex; justify-content:space-between; gap:16px; align-items:flex-start; }
-.question-row .qr-text{ font-weight:500; line-height:1.55; }
-.question-row .qr-meta{ font-family:var(--font-mono); font-size:11.5px; color:var(--ink-faint); margin-top:8px; text-transform:uppercase; letter-spacing:.05em; }
-.qr-actions{ display:flex; gap:8px; flex-shrink:0; }
-.qr-icon-btn{ width:34px; height:34px; border-radius:8px; border:1px solid var(--paper-line); background:transparent; cursor:pointer; color:var(--ink-soft); }
-.qr-icon-btn:hover{ background:var(--paper); }
-
-/* Modal */
-.modal-overlay{ position:fixed; inset:0; background:rgba(10,25,48,.55); backdrop-filter:blur(3px); z-index:1000; display:flex; align-items:flex-start; justify-content:center; padding:50px 20px; overflow-y:auto; }
-.modal{ background:var(--card); border-radius:var(--radius-lg); max-width:640px; width:100%; padding:34px 36px; box-shadow:var(--shadow-hover); }
-.modal.modal-wide{ max-width:760px; }
-.modal h3{ font-family:var(--font-display); font-size:24px; margin-bottom:24px; }
-.form-group{ margin-bottom:18px; }
-.form-group label{ display:block; font-size:13px; font-weight:600; color:var(--ink-soft); margin-bottom:8px; text-transform:uppercase; letter-spacing:.04em; }
-.form-group input, .form-group textarea, .form-group select{ width:100%; padding:13px 15px; border-radius:10px; border:1.5px solid var(--paper-line); font-family:var(--font-body); font-size:14.5px; background:var(--paper); color:var(--ink); }
-.form-group textarea{ resize:vertical; min-height:80px; }
-.form-row{ display:flex; gap:14px; }
-.form-row .form-group{ flex:1; }
-.type-toggle{ display:flex; gap:10px; margin-bottom:20px; }
-.type-toggle button{ flex:1; padding:12px; border-radius:10px; border:1.5px solid var(--paper-line); background:transparent; cursor:pointer; font-weight:600; font-family:var(--font-body); color:var(--ink-soft); }
-.type-toggle button.active{ border-color:var(--navy-900); background:var(--navy-900); color:#fff; }
-.choice-input-row{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
-.choice-input-row input[type=radio]{ width:20px; height:20px; accent-color:var(--good); flex-shrink:0; }
-.modal-actions{ display:flex; justify-content:flex-end; gap:12px; margin-top:26px; }
-.bulk-drop{ border:1.5px dashed var(--paper-line); border-radius:14px; padding:28px; text-align:center; cursor:pointer; transition:.18s; background:var(--paper); }
-.bulk-drop:hover, .bulk-drop.drag-over{ border-color:var(--navy-700); background:rgba(30,75,143,.05); }
-.bulk-drop i{ font-size:26px; color:var(--brass-dark); margin-bottom:10px; display:block; }
-.bulk-drop .fname{ font-family:var(--font-mono); font-size:13px; color:var(--navy-700); margin-top:8px; }
-body.dark .bulk-drop .fname{ color:var(--brass-light); }
-.bulk-format-toggle{ display:flex; gap:8px; margin-bottom:16px; }
-.bulk-format-toggle button{ padding:8px 16px; border-radius:8px; border:1.5px solid var(--paper-line); background:transparent; cursor:pointer; font-weight:600; font-size:13px; font-family:var(--font-body); color:var(--ink-soft); }
-.bulk-format-toggle button.active{ border-color:var(--navy-900); background:var(--navy-900); color:#fff; }
-.bulk-report{ margin-top:18px; padding:16px 18px; border-radius:12px; background:var(--good-bg); color:var(--good); font-size:14px; }
-.bulk-report.has-errors{ background:var(--bad-bg); color:var(--bad); }
-.bulk-report ul{ margin:10px 0 0 20px; font-family:var(--font-mono); font-size:12.5px; }
-.bulk-report ul li{ margin-bottom:4px; }
-.bulk-help{ font-size:12.5px; color:var(--ink-soft); line-height:1.6; background:var(--paper); border-radius:10px; padding:14px 16px; margin-bottom:16px; }
-.bulk-help code{ font-family:var(--font-mono); background:var(--paper-line); padding:1px 5px; border-radius:4px; }
-.bulk-help a{ color:var(--navy-700); font-weight:600; cursor:pointer; text-decoration:underline; }
-body.dark .bulk-help a{ color:var(--brass-light); }
-
-.danger-zone{ margin-top:8px; padding:14px 16px; border-radius:12px; border:1.5px solid rgba(176,71,62,.3); background:var(--bad-bg); }
-.danger-zone p{ font-size:12px; color:var(--ink-soft); line-height:1.55; margin-bottom:10px; }
-
-footer{ text-align:center; padding:40px; color:var(--ink-faint); font-size:13.5px; }
-
-@media(max-width:900px){
-    .topbar nav{ display:none; }
-    .hero h1{ font-size:40px; }
-    .admin-shell{ grid-template-columns:1fr; }
-    .admin-sidebar{ border-right:none; border-bottom:1px solid var(--paper-line); }
-}
-@media(max-width:600px){
-    .container{ padding:0 20px; }
-    .hero{ padding:50px 0 40px; }
-    .hero h1{ font-size:32px; }
-    .btn{ width:100%; justify-content:center; }
-    .hero-actions{ flex-direction:column; }
-    .question-card{ padding:26px 22px; }
-    .user-chip span{ display:none; }
-    .form-row{ flex-direction:column; gap:0; }
-}
-
-</style>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -374,7 +29,7 @@ footer{ text-align:center; padding:40px; color:var(--ink-faint); font-size:13.5p
 
 <div id="app"></div>
 
-<footer>© 2026 CPA Board Reviewer · Data stored locally on this device</footer>
+<footer>© 2026 CPA Board Reviewer · Not by might, but by faithful effort</footer>
 
 <script>
 /* ============================================================
@@ -394,10 +49,24 @@ const CPA = (() => {
     };
 
     // ---- Supabase client + auth ----------------------------------------
-    const supabaseClient = supabase.createClient(
-        'https://skosmgyicuwvlybkqdal.supabase.co',
-        'sb_publishable_scCLt7VTNyIR-q8QDRPpxQ_4xMubH2Z'
-    );
+    // Load credentials from window.CONFIG (set via config.local.js for local dev)
+    // Fallback to empty values to prevent crashes, but will show auth error
+    const supabaseUrl = window.CONFIG?.SUPABASE_URL || '';
+    const supabaseKey = window.CONFIG?.SUPABASE_ANON_KEY || '';
+
+    if (!supabaseUrl || !supabaseKey) {
+        console.error(
+            '[CPA] ⚠️ Supabase credentials missing!\n' +
+            'For local development: Create config.local.js with:\n' +
+            '  window.CONFIG = {\n' +
+            '    SUPABASE_URL: "YOUR_SUPABASE_URL",\n' +
+            '    SUPABASE_ANON_KEY: "YOUR_ANON_KEY"\n' +
+            '  };\n' +
+            'For GitHub Pages: See the SECURITY.md file for GitHub Actions setup.\n'
+        );
+    }
+
+    const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
     let _user = null;      // { id, email } once logged in
     let _profile = null;   // { id, display_name, is_admin }
@@ -990,6 +659,50 @@ const CPA = (() => {
 </script>
 <script>
 /* ============================================================
+   🔒 SECURITY: XSS Prevention Utilities
+   Sanitization helpers for innerHTML assignments with user data
+   ============================================================ */
+
+// Sanitize text for safe text-only display (no HTML)
+function sanitizeText(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.textContent; // Extract as plain text
+}
+
+// Sanitize and render HTML (for formatted question text, explanations)
+function sanitizeHTML(html) {
+    if (!window.DOMPurify) {
+        console.warn('[SECURITY] DOMPurify not loaded, returning plain text');
+        return sanitizeText(html);
+    }
+    return window.DOMPurify.sanitize(html, {
+        ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'br', 'p', 'div', 'span', 'ul', 'ol', 'li', 'code', 'pre'],
+        ALLOWED_ATTR: ['class', 'id']
+    });
+}
+
+// Safe template literal rendering with text content
+function safeHTML(strings, ...values) {
+    let result = '';
+    for (let i = 0; i < strings.length; i++) {
+        result += strings[i];
+        if (i < values.length) {
+            // Escape any interpolated values for safe HTML insertion
+            const value = values[i];
+            if (typeof value === 'string') {
+                result += sanitizeText(value);
+            } else {
+                result += value;
+            }
+        }
+    }
+    return result;
+}
+
+</script>
+<script>
+/* ============================================================
    Single-page router: Dashboard, Subject, Exam, Admin all live
    here and swap into #app based on the URL hash.
    #/                    -> dashboard
@@ -1011,7 +724,20 @@ function renderUserChip(){
     if(!user){ chip.style.display = 'none'; return; }
     const name = CPA.getDisplayName();
     chip.style.display = 'flex';
-    chip.innerHTML = `<span class="avatar">${name.trim().charAt(0).toUpperCase()}</span><span>${name}</span>`;
+    
+    // 🔒 SECURITY: Use DOM methods instead of innerHTML to prevent XSS
+    chip.innerHTML = ''; // Clear existing content
+    
+    const avatar = document.createElement('span');
+    avatar.className = 'avatar';
+    avatar.textContent = name.trim().charAt(0).toUpperCase();
+    
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = name; // textContent is XSS-safe
+    
+    chip.appendChild(avatar);
+    chip.appendChild(nameSpan);
+    
     chip.onclick = async () => {
         if(confirm(`Sign out of "${name}"? Your saved progress stays safely in your account for next time.`)){
             await CPA.signOut();
@@ -1208,7 +934,7 @@ function renderDashboard(){
             <h1>Prepare smarter.<br>Pass with <em>certainty</em>.</h1>
             <p>Six subjects, admin-curated topics, and a Mastery Exam that unlocks once every topic is passed.</p>
             <div class="hero-actions">
-                <button class="btn btn-primary" id="startReviewBtn"><i class="fa-solid fa-play"></i> Start Reviewing</button>
+                <button class="btn btn-primary" id="startReviewBtn"><i class="fa-solid fa-arrow-right-to-bracket"></i> ${CPA.getStats().examsTaken ? 'Continue Studying' : 'Start Reviewing'}</button>
                 <a class="btn btn-outline" onclick="location.hash='#/admin'"><i class="fa-solid fa-pen-ruler"></i> Manage Question Bank</a>
             </div>
         </section>
@@ -1277,6 +1003,24 @@ function renderDashboard(){
     document.getElementById('examCount').textContent = stats.examsTaken;
 
     document.getElementById('startReviewBtn').addEventListener('click', () => {
+        // Try to jump straight to somewhere useful instead of just scrolling:
+        // 1) a topic already attempted but not yet passed (weakest first),
+        // 2) otherwise the first subject with a topic never attempted,
+        // 3) otherwise (everything passed, or brand-new account) just scroll
+        //    down so the person can pick a subject themselves.
+        const weak = CPA.getWeakAreas(CPA.MASTERY_PASS_THRESHOLD);
+        if(weak.length){
+            location.hash = `#/subject/${weak[0].subject.id}`;
+            return;
+        }
+        for(const s of CPA.SUBJECTS){
+            const topics = CPA.getTopics(s.id);
+            const hasUnattempted = topics.some(t => CPA.getBestScore(s.id, t.id) === null);
+            if(hasUnattempted){
+                location.hash = `#/subject/${s.id}`;
+                return;
+            }
+        }
         document.getElementById('subjectsSection').scrollIntoView({ behavior:'smooth' });
     });
 
@@ -1354,7 +1098,7 @@ function buildWeakAreasHTML(weak){
             <h3><i class="fa-solid fa-triangle-exclamation"></i> Needs Review</h3>
             <p>These topics are still below the 75% passing mark, based on your best attempt so far. Tap one to jump back in.</p>
             <div class="weak-chip-list">
-                ${weak.map(w => `<span class="weak-chip" data-subject="${w.subject.id}" data-level="${w.level.id}">${w.subject.id} · ${w.level.label} · ${w.best}%</span>`).join('')}
+                ${weak.map(w => `<span class="weak-chip" data-subject="${sanitizeText(w.subject.id)}" data-level="${sanitizeText(w.level.id)}">${sanitizeText(w.subject.id)} · ${sanitizeText(w.level.label)} · ${w.best}%</span>`).join('')}
             </div>
         </div>`;
 }
@@ -1369,7 +1113,7 @@ function buildSubjectBreakdownHTML(breakdown){
             const barColor = lv.best === null ? 'var(--paper-line)' : scoreColor(lv.best);
             const scoreLabel = lv.best === null ? 'Not tried' : lv.best + '%';
             return `<div class="sb-level-row">
-                <span class="sb-level-label">${t.name}</span>
+                <span class="sb-level-label">${sanitizeText(t.name)}</span>
                 <div class="sb-level-bar"><div class="sb-level-fill" style="width:${pct}%; background:${barColor};"></div></div>
                 <span class="sb-level-score">${scoreLabel}</span>
             </div>`;
@@ -1382,9 +1126,9 @@ function buildSubjectBreakdownHTML(breakdown){
             <div class="sb-level-bar"><div class="sb-level-fill" style="width:${masteryPct}%; background:${masteryColor};"></div></div>
             <span class="sb-level-score">${masteryLabel}</span>
         </div>`;
-        return `<div class="sb-card" data-subject="${b.subject.id}">
+        return `<div class="sb-card" data-subject="${sanitizeText(b.subject.id)}">
             <div class="sb-top">
-                <span class="sb-name">${b.subject.name}</span>
+                <span class="sb-name">${sanitizeText(b.subject.name)}</span>
                 <span class="sb-avg ${avgClass}">${avgLabel}</span>
             </div>
             <div class="sb-levels">${levelsHtml}${masteryRow}</div>
@@ -1398,7 +1142,8 @@ function buildRecentActivityHTML(recent){
     }
     return recent.map(r => {
         const subj = CPA.SUBJECTS.find(s => s.id === r.subject);
-        const lvlLabel = r.level === CPA.MASTERY_TOPIC_ID ? 'Mastery Exam' : (CPA.getTopic(r.level) ? CPA.getTopic(r.level).name : r.level);
+        const topicObj = CPA.getTopic(r.level);
+        const lvlLabel = r.level === CPA.MASTERY_TOPIC_ID ? 'Mastery Exam' : (topicObj ? sanitizeText(topicObj.name) : sanitizeText(r.level));
         const dur = r.durationSec || 0;
         const dateStr = new Date(r.date).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
         const timeStr = new Date(r.date).toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
@@ -1406,7 +1151,7 @@ function buildRecentActivityHTML(recent){
             <div class="ra-left">
                 <span class="ra-badge ${scoreClass(r.percentage)}">${r.percentage}%</span>
                 <div>
-                    <div class="ra-title">${subj ? subj.name : r.subject} · ${lvlLabel}</div>
+                    <div class="ra-title">${subj ? sanitizeText(subj.name) : sanitizeText(r.subject)} · ${lvlLabel}</div>
                     <div class="ra-meta">${r.score}/${r.total} correct · ${Math.floor(dur/60)}m ${dur%60}s</div>
                 </div>
             </div>
@@ -1469,18 +1214,20 @@ function renderSubjectSelect(subjectId){
                 <div>
                     <div class="tier">Topic</div>
                     <h3>${topic.name}</h3>
-                    <div class="qcount">${available} question${available === 1 ? '' : 's'} ready · no limit</div>
+                    <div class="qcount">${available} question${available === 1 ? '' : 's'} ready · retake anytime</div>
                 </div>
                 ${best !== null ? `<span class="permit-stamp">Best ${best}%</span>` : ''}
             </div>
             <div class="permit-body">
                 <p style="color:var(--ink-soft); font-size:14px; line-height:1.6;">${best !== null && best >= CPA.MASTERY_PASS_THRESHOLD ? 'Passed — counts toward Mastery Exam unlock.' : `Pass at ${CPA.MASTERY_PASS_THRESHOLD}%+ to help unlock the Mastery Exam.`}</p>
                 <div class="permit-stub"></div>
+                <div class="permit-actions">
                 ${canStart
                     ? `<button class="btn btn-primary btn-sm" style="justify-content:center;" onclick="location.hash='#/exam/${subject.id}/${topic.id}'"><i class="fa-solid fa-file-pen"></i> Start Topic Exam</button>`
                     : `<div class="permit-locked"><i class="fa-solid fa-lock"></i> No questions yet in this topic — add some from the Question Bank.</div>
                        <button class="btn btn-outline btn-sm" style="justify-content:center;" onclick="location.hash='#/admin/${subject.id}/${topic.id}'"><i class="fa-solid fa-plus"></i> Add Questions</button>`
                 }
+                </div>
             </div>`;
         grid.appendChild(el);
     });
@@ -1494,7 +1241,7 @@ function renderSubjectSelect(subjectId){
             <div>
                 <div class="tier">Capstone</div>
                 <h3><i class="fa-solid ${masteryUnlocked ? 'fa-unlock' : 'fa-lock'}"></i> Mastery Exam</h3>
-                <div class="qcount">Combines every topic in ${subject.name}</div>
+                <div class="qcount">Combines every topic in ${sanitizeText(subject.name)}</div>
             </div>
             ${masteryBest !== null ? `<span class="permit-stamp">Best ${masteryBest}%</span>` : ''}
         </div>
@@ -1506,10 +1253,12 @@ function renderSubjectSelect(subjectId){
                 }
             </p>
             <div class="permit-stub"></div>
+            <div class="permit-actions">
             ${masteryUnlocked
                 ? `<button class="btn btn-primary btn-sm" style="justify-content:center;" onclick="location.hash='#/exam/${subject.id}/${CPA.MASTERY_TOPIC_ID}'"><i class="fa-solid fa-file-pen"></i> Start Mastery Exam</button>`
-                : `<div class="permit-locked"><i class="fa-solid fa-lock"></i> Still need: ${unpassedTopics.map(t => t.name).join(', ')}</div>`
+                : `<div class="permit-locked"><i class="fa-solid fa-lock"></i> Still need: ${unpassedTopics.map(t => sanitizeText(t.name)).join(', ')}</div>`
             }
+            </div>
         </div>`;
     grid.appendChild(masteryEl);
 }
@@ -1531,7 +1280,7 @@ function renderExam(subjectId, levelId){
     const { questions, target, available } = CPA.buildExam(subjectId, levelId);
 
     if(!questions.length){
-        app.innerHTML = `<div class="exam-shell"><div class="empty-state"><i class="fa-solid fa-inbox"></i><h3>No questions yet</h3><p>${isMastery ? `No questions have been loaded across ${subject.name}'s topics yet.` : `The ${level.label} topic for ${subject.name} is empty. Add questions in the Question Bank first.`}</p>${isMastery ? '' : `<button class="btn btn-primary" onclick="location.hash='#/admin/${subject.id}/${level.id}'">Go to Question Bank</button>`}</div></div>`;
+        app.innerHTML = `<div class="exam-shell"><div class="empty-state"><i class="fa-solid fa-inbox"></i><h3>No questions yet</h3><p>${isMastery ? `No questions have been loaded across ${sanitizeText(subject.name)}'s topics yet.` : `The ${sanitizeText(level.label)} topic for ${sanitizeText(subject.name)} is empty. Add questions in the Question Bank first.`}</p>${isMastery ? '' : `<button class="btn btn-primary" onclick="location.hash='#/admin/${subject.id}/${level.id}'">Go to Question Bank</button>`}</div></div>`;
         return;
     }
 
@@ -1566,11 +1315,11 @@ function renderExam(subjectId, levelId){
         let bodyHtml = '';
         if(q.type === 'problem'){
             const val = answered || '';
-            bodyHtml = `<div class="problem-answer-box"><textarea id="problemInput" rows="3" placeholder="Enter your final answer here...">${val}</textarea></div>`;
+            bodyHtml = `<div class="problem-answer-box"><textarea id="problemInput" rows="3" placeholder="Enter your final answer here...">${sanitizeText(val)}</textarea></div>`;
         } else {
             bodyHtml = `<div class="choice-list">` + q.choices.map((choice, i) => `
                 <div class="choice ${answered === i ? 'selected' : ''}" tabindex="0" onclick="examSelectChoice(${i})" onkeydown="if(event.key==='Enter')examSelectChoice(${i})">
-                    <span class="letter">${String.fromCharCode(65+i)}</span><span>${choice}</span>
+                    <span class="letter">${String.fromCharCode(65+i)}</span><span>${sanitizeHTML(choice)}</span>
                 </div>`).join('') + `</div>`;
         }
 
@@ -1578,12 +1327,12 @@ function renderExam(subjectId, levelId){
             <div class="exam-shell">
                 <div class="exam-progress-bar"><div class="exam-progress-fill" style="width:${pct}%"></div></div>
                 <div class="exam-meta">
-                    <span>${subject.name} · ${level.label} · Question ${current+1} of ${questions.length}${available < target ? ` (bank has ${available}/${target})` : ''}</span>
+                    <span>${sanitizeText(subject.name)} · ${sanitizeText(level.label)} · Question ${current+1} of ${questions.length}${available < target ? ` (bank has ${available}/${target})` : ''}</span>
                     <span class="exam-timer" id="timerDisplay">00:00</span>
                 </div>
                 <div class="question-card">
                     <span class="q-tag">${q.type === 'problem' ? 'Problem Solving' : 'Multiple Choice'}</span>
-                    <div class="q-text">${q.question}</div>
+                    <div class="q-text">${sanitizeHTML(q.question)}</div>
                     ${bodyHtml}
                 </div>
                 <div class="exam-nav">
@@ -1663,10 +1412,10 @@ function renderExam(subjectId, levelId){
                     <div class="pct"><span class="num">${pct}%</span><span class="cap">Score</span></div>
                 </div>
                 <div class="result-verdict">${verdict(pct)}</div>
-                <div class="result-detail">${correct} of ${total} correct · ${subject.name} · ${level.label} · ${m}m ${s}s</div>
+                <div class="result-detail">${correct} of ${total} correct · ${sanitizeText(subject.name)} · ${sanitizeText(level.label)} · ${m}m ${s}s</div>
                 <div style="display:flex; gap:14px; justify-content:center; flex-wrap:wrap;">
                     <button class="btn btn-outline" onclick="location.hash='#/subject/${subject.id}'"><i class="fa-solid fa-rotate-left"></i> Try Another Topic</button>
-                    <button class="btn btn-primary" onclick="location.hash='#/exam/${subject.id}/${level.id}'; router();"><i class="fa-solid fa-arrows-rotate"></i> Retake ${level.label}</button>
+                    <button class="btn btn-primary" onclick="location.hash='#/exam/${subject.id}/${level.id}'; router();"><i class="fa-solid fa-arrows-rotate"></i> Retake ${sanitizeText(level.label)}</button>
                 </div>
             </div>
             <div class="section-head" style="margin-top:50px;"><div><h2 style="font-size:24px;">Review</h2></div></div>
@@ -1748,7 +1497,7 @@ function renderAdmin(presetSubject, presetLevel){
     function renderSidebar(){
         subjectListEl.innerHTML = CPA.SUBJECTS.map(s => `
             <div class="admin-subject-item ${s.id === activeSubject ? 'active' : ''}" data-sid="${s.id}">
-                <i class="fa-solid ${s.icon}" style="width:18px;"></i> ${s.name}
+                <i class="fa-solid ${s.icon}" style="width:18px;"></i> ${sanitizeText(s.name)}
             </div>`).join('');
         subjectListEl.querySelectorAll('.admin-subject-item').forEach(el => {
             el.addEventListener('click', () => {
@@ -1792,7 +1541,7 @@ function renderAdmin(presetSubject, presetLevel){
         const topics = CPA.getTopics(activeSubject);
         levelTabsEl.innerHTML = topics.map(t => `
             <button class="level-tab ${t.id === activeLevel ? 'active' : ''}" data-lid="${t.id}">
-                ${t.name} <span class="count-badge">${counts[t.id] || 0}</span>
+                ${sanitizeText(t.name)} <span class="count-badge">${counts[t.id] || 0}</span>
                 ${t.id === activeLevel ? `<i class="fa-solid fa-trash" data-del-topic="${t.id}" style="margin-left:8px; opacity:.6;" title="Delete topic"></i>` : ''}
             </button>`).join('') + `<button class="level-tab" id="addTopicTab"><i class="fa-solid fa-plus"></i> Add Topic</button>`;
         levelTabsEl.querySelectorAll('.level-tab[data-lid]').forEach(el => {
@@ -1832,7 +1581,7 @@ function renderAdmin(presetSubject, presetLevel){
         if(term) qs = qs.filter(q => q.question.toLowerCase().includes(term));
 
         if(!qs.length){
-            const topicName = CPA.getTopic(activeLevel) ? CPA.getTopic(activeLevel).name : 'this topic';
+            const topicName = CPA.getTopic(activeLevel) ? sanitizeText(CPA.getTopic(activeLevel).name) : 'this topic';
             questionListEl.innerHTML = `
                 <div class="empty-state">
                     <i class="fa-solid fa-inbox"></i>
@@ -1852,7 +1601,7 @@ function renderAdmin(presetSubject, presetLevel){
             <div class="question-row">
                 <div class="qr-top">
                     <div>
-                        <div class="qr-text">${q.question}</div>
+                        <div class="qr-text">${sanitizeText(q.question)}</div>
                         <div class="qr-meta">${q.type === 'mcq' ? 'Multiple Choice' : 'Problem Solving'} · Added ${new Date(q.createdAt).toLocaleDateString()}</div>
                     </div>
                     <div class="qr-actions">
