@@ -191,14 +191,15 @@ body.dark .sb-card{ border-color:rgba(255,255,255,.06); }
 .permit-header h1{ font-family:var(--font-display); font-size:42px; font-weight:600; }
 .permit-header p{ color:var(--ink-soft); margin-top:10px; font-size:16px; max-width:600px; }
 .permit-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:28px; padding-bottom:80px; }
-.permit{ position:relative; background:var(--card); border-radius:var(--radius-md); box-shadow:var(--shadow-card); padding:0; overflow:hidden; border:1px solid rgba(15,42,74,.08); transition:transform .25s ease, box-shadow .25s ease; }
+.permit{ position:relative; background:var(--card); border-radius:var(--radius-md); box-shadow:var(--shadow-card); padding:0; overflow:hidden; border:1px solid rgba(15,42,74,.08); transition:transform .25s ease, box-shadow .25s ease; display:flex; flex-direction:column; height:100%; }
 body.dark .permit{ border-color:rgba(255,255,255,.07); }
 .permit:hover{ transform:translateY(-5px); box-shadow:var(--shadow-hover); }
-.permit-top{ background:var(--navy-900); color:#fff; padding:22px 26px; display:flex; justify-content:space-between; align-items:flex-start; }
+.permit-top{ background:var(--navy-900); color:#fff; padding:22px 26px; display:flex; justify-content:space-between; align-items:flex-start; min-height:150px; }
 .permit-top .tier{ font-family:var(--font-mono); font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--brass-light); }
 .permit-top h3{ font-family:var(--font-display); font-size:24px; font-weight:600; margin-top:6px; }
 .permit-top .qcount{ font-family:var(--font-mono); font-size:13px; color:#CBD6E6; margin-top:8px; }
-.permit-body{ padding:22px 26px 26px; border-top:1px dashed var(--paper-line); display:flex; flex-direction:column; gap:16px; }
+.permit-body{ padding:22px 26px 26px; border-top:1px dashed var(--paper-line); display:flex; flex-direction:column; gap:16px; flex:1 1 auto; }
+.permit-actions{ margin-top:auto; display:flex; flex-direction:column; gap:10px; }
 .permit-stub{ background:repeating-linear-gradient(90deg, var(--paper-line) 0 8px, transparent 8px 16px); height:1px; margin:2px 0; }
 .permit-stamp{ font-family:var(--font-mono); font-size:11px; font-weight:600; letter-spacing:.08em; color:var(--brass-dark); border:1.5px solid var(--brass); border-radius:6px; padding:5px 10px; transform:rotate(-4deg); display:inline-block; text-transform:uppercase; }
 .permit-locked{ color:var(--ink-faint); font-size:13.5px; font-style:italic; }
