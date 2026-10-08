@@ -16,12 +16,13 @@
 <body>
 
 <div class="topbar">
-    <div class="brand" onclick="location.hash='#/'"><span class="seal"><i class="fa-solid fa-scale-balanced"></i></span> CPA Reviewer</div>
+    <div class="brand" onclick="location.hash='#/'"><span class="seal"><i class="fa-solid fa-scale-balanced"></i></span> <span id="brandText">CPA Reviewer</span></div>
     <nav>
         <a data-route="/" onclick="location.hash='#/'">Dashboard</a>
         <a data-route="/admin" onclick="location.hash='#/admin'">Question Bank</a>
     </nav>
     <div class="topbar-actions">
+        <div class="exam-switch" id="examSwitch" style="display:none;"></div>
         <div class="user-chip" id="userChip" style="display:none;" title="Switch reviewer"></div>
         <button id="darkModeBtn" class="icon-btn"><i class="fa-solid fa-moon"></i></button>
     </div>
@@ -184,6 +185,31 @@ const CPA = (() => {
         { id:'TAXATION',  name:'Taxation',  full:'Tax Concepts & Computations',             icon:'fa-receipt', featured:true },
         { id:'RFBT',      name:'RFBT',      full:'Regulatory Framework & Business Law',     icon:'fa-scale-balanced' }
     ];
+    SUBJECTS.forEach(s => { s.exam = 'cpa'; });
+    // Civil Service Exam: same four subtests for both levels, kept as separate
+    // subject ids so each level has its own topics, questions and scores.
+    const CS_LEVELS = { pro:'Professional', sub:'Sub-professional' };
+    const CS_SUBTESTS = [
+        { key:'VERBAL',     code:'VERBAL',     name:'Verbal Ability',      icon:'fa-book-open' },
+        { key:'NUMERICAL',  code:'NUMERICAL',  name:'Numerical Ability',   icon:'fa-hashtag' },
+        { key:'ANALYTICAL', code:'ANALYTICAL', name:'Analytical Ability',  icon:'fa-puzzle-piece' },
+        { key:'GI',         code:'GEN. INFO',  name:'General Information', icon:'fa-landmark' }
+    ];
+    Object.keys(CS_LEVELS).forEach(lv => CS_SUBTESTS.forEach(t => SUBJECTS.push({
+        id:'CS' + lv.toUpperCase().charAt(0) + '_' + t.key, code:t.code, name:t.name,
+        full:CS_LEVELS[lv] + ' · ' + t.name, icon:t.icon, exam:'cs', csLevel:lv
+    })));
+
+    // ---- Which reviewer (exam) is active — local UI pref ----------------
+    function getExam(){ const e = _read(KEYS.SETTINGS, {}).exam; return e === 'cpa' || e === 'cs' ? e : null; }
+    function setExam(e){ const s = _read(KEYS.SETTINGS, {}); s.exam = e; _write(KEYS.SETTINGS, s); }
+    function getCsLevel(){ return _read(KEYS.SETTINGS, {}).csLevel === 'sub' ? 'sub' : 'pro'; }
+    function setCsLevel(l){ const s = _read(KEYS.SETTINGS, {}); s.csLevel = l === 'sub' ? 'sub' : 'pro'; _write(KEYS.SETTINGS, s); }
+    function visibleSubjects(){
+        const e = getExam() || 'cpa';
+        return SUBJECTS.filter(s => s.exam === e && (e === 'cpa' || s.csLevel === getCsLevel()));
+    }
+    function examLabel(){ return getExam() === 'cs' ? 'Civil Service (' + CS_LEVELS[getCsLevel()] + ')' : 'CPALE'; }
 
     // The Mastery Exam is a computed pseudo-topic (not a row in the topics
     // table): it pulls every question from every topic in the subject, and
@@ -512,7 +538,7 @@ const CPA = (() => {
         return Math.max(...rs.map(r => r.percentage));
     }
     function getStats(){
-        const all = getAllResults();
+        const all = _reviewerResults();
         const examsTaken = all.length;
         const avg = examsTaken ? Math.round(all.reduce((a,r) => a + r.percentage, 0) / examsTaken) : 0;
         const highest = examsTaken ? Math.max(...all.map(r => r.percentage)) : 0;
@@ -521,13 +547,14 @@ const CPA = (() => {
 
     // ---- Detailed progress helpers -------------------------------------
     function _reviewerResults(){
-        return getAllResults();
+        const ids = new Set(visibleSubjects().map(s => s.id));
+        return getAllResults().filter(r => ids.has(r.subject));
     }
     // Best score + attempt count per subject/level, plus a per-subject average
     // across whichever tiers have been attempted at least once.
     function getSubjectBreakdown(){
         const results = _reviewerResults();
-        return SUBJECTS.map(s => {
+        return visibleSubjects().map(s => {
             const topics = getTopics(s.id);
             const levels = {};
             topics.forEach(t => {
@@ -558,7 +585,7 @@ const CPA = (() => {
         threshold = threshold === undefined ? 75 : threshold;
         const results = _reviewerResults();
         const weak = [];
-        SUBJECTS.forEach(s => {
+        visibleSubjects().forEach(s => {
             getTopics(s.id).forEach(t => {
                 const tResults = results.filter(r => r.subject === s.id && r.level === t.id);
                 if(!tResults.length) return;
@@ -642,7 +669,7 @@ const CPA = (() => {
     }
 
     return {
-        SUBJECTS, MASTERY_TOPIC_ID, MASTERY_PASS_THRESHOLD,
+        SUBJECTS, MASTERY_TOPIC_ID, getExam, setExam, getCsLevel, setCsLevel, visibleSubjects, examLabel, CS_LEVELS, MASTERY_PASS_THRESHOLD,
         loadTopics, getAllTopics, getTopics, getTopic, addTopic, renameTopic, deleteTopic, isMasteryUnlocked,
         getAllQuestions, getQuestions, getQuestion, addQuestion, updateQuestion, deleteQuestion, getQuestionCounts,
         bulkAddQuestions, parseCSV,
@@ -750,6 +777,7 @@ function renderUserChip(){
 async function router(){
     if(activeCleanup){ activeCleanup(); activeCleanup = null; }
     renderUserChip();
+    applyExamTheme();
 
     const hash = location.hash.replace(/^#\/?/, '');
     const parts = hash.split('/').filter(Boolean);
@@ -778,7 +806,9 @@ async function router(){
         return;
     }
 
-    if(parts.length === 0){
+    if(parts[0] === 'choose' || (parts.length === 0 && !CPA.getExam())){
+        renderChooser();
+    } else if(parts.length === 0){
         document.querySelector('.topbar nav a[data-route="/"]').classList.add('active');
         renderDashboard();
     } else if(parts[0] === 'subject'){
@@ -794,6 +824,55 @@ async function router(){
     }
     window.scrollTo(0, 0);
 }
+function applyExamTheme(){
+    const cs = CPA.getExam() === 'cs';
+    document.body.classList.toggle('exam-cs', cs);
+    document.getElementById('brandText').textContent = cs ? 'Civil Service Reviewer' : 'CPA Reviewer';
+    document.title = cs ? 'Civil Service Reviewer' : 'CPA Board Reviewer';
+    const sw = document.getElementById('examSwitch');
+    if(!CPA.getUser() || !CPA.getExam()){ sw.style.display = 'none'; return; }
+    sw.style.display = 'flex';
+    sw.innerHTML = `
+        <button data-e="cpa" class="${!cs ? 'on' : ''}">CPA Board</button>
+        <button data-e="cs" class="${cs ? 'on' : ''}">Civil Service</button>
+        ${cs ? `<select id="csLevelSel" title="Exam level"><option value="pro">Professional</option><option value="sub">Sub-professional</option></select>` : ''}`;
+    sw.querySelectorAll('button').forEach(b => b.onclick = () => { CPA.setExam(b.dataset.e); location.hash = '#/'; router(); });
+    const sel = document.getElementById('csLevelSel');
+    if(sel){ sel.value = CPA.getCsLevel(); sel.onchange = () => { CPA.setCsLevel(sel.value); location.hash = '#/'; router(); }; }
+}
+
+/* ================= CHOOSE A REVIEWER ================= */
+function renderChooser(){
+    let lvl = CPA.getCsLevel();
+    app.innerHTML = `
+        <section class="hero container" style="text-align:center;">
+            <h1 style="margin:0 auto;">Choose a <em>reviewer</em></h1>
+            <p style="margin-left:auto;margin-right:auto;">Pick the exam you're preparing for. You can switch any time from the top bar.</p>
+            <div class="chooser-grid">
+                <div class="chooser-card cpa" id="pickCpa">
+                    <div class="code-row"><i class="fa-solid fa-scale-balanced card-icon"></i></div>
+                    <h3>CPA Board</h3>
+                    <p class="desc">Six CPALE subjects with topic exams and a gated Mastery Exam.</p>
+                    <span class="btn btn-primary">Start CPA Review</span>
+                </div>
+                <div class="chooser-card cs" id="pickCs">
+                    <div class="code-row"><i class="fa-solid fa-landmark card-icon"></i></div>
+                    <h3>Civil Service Exam</h3>
+                    <p class="desc">Verbal, Numerical, Analytical and General Information.</p>
+                    <div class="lvl-toggle" id="lvlToggle">
+                        <button data-l="pro">Professional</button><button data-l="sub">Sub-professional</button>
+                    </div>
+                    <span class="btn btn-primary">Start Civil Service Review</span>
+                </div>
+            </div>
+        </section>`;
+    const paint = () => document.querySelectorAll('#lvlToggle button').forEach(b => b.classList.toggle('on', b.dataset.l === lvl));
+    paint();
+    document.querySelectorAll('#lvlToggle button').forEach(b => b.onclick = e => { e.stopPropagation(); lvl = b.dataset.l; paint(); });
+    document.getElementById('pickCpa').onclick = () => { CPA.setExam('cpa'); location.hash = '#/'; router(); };
+    document.getElementById('pickCs').onclick = () => { CPA.setExam('cs'); CPA.setCsLevel(lvl); location.hash = '#/'; router(); };
+}
+
 window.addEventListener('hashchange', router);
 window.addEventListener('DOMContentLoaded', async () => {
     await CPA.initSession();     // restore session (if any) + load question bank
@@ -930,9 +1009,9 @@ function renderAuthGate(onDone){
 function renderDashboard(){
     app.innerHTML = `
         <section class="hero container">
-            <span class="eyebrow"><i class="fa-solid fa-stamp"></i> CPALE Preparation Platform</span>
+            <span class="eyebrow"><i class="fa-solid fa-stamp"></i> ${CPA.examLabel()} Preparation Platform</span>
             <h1>Prepare smarter.<br>Pass with <em>certainty</em>.</h1>
-            <p>Six subjects, admin-curated topics, and a Mastery Exam that unlocks once every topic is passed.</p>
+            <p>${CPA.visibleSubjects().length} subjects, admin-curated topics, and a Mastery Exam that unlocks once every topic is passed.</p>
             <div class="hero-actions">
                 <button class="btn btn-primary" id="startReviewBtn"><i class="fa-solid fa-arrow-right-to-bracket"></i> ${CPA.getStats().examsTaken ? 'Continue Studying' : 'Start Reviewing'}</button>
                 <a class="btn btn-outline" onclick="location.hash='#/admin'"><i class="fa-solid fa-pen-ruler"></i> Manage Question Bank</a>
@@ -976,7 +1055,7 @@ function renderDashboard(){
     `;
 
     const grid = document.getElementById('subjectGrid');
-    CPA.SUBJECTS.forEach(s => {
+    CPA.visibleSubjects().forEach(s => {
         const counts = CPA.getQuestionCounts(s.id);
         const topics = CPA.getTopics(s.id);
         const masteryUnlocked = CPA.isMasteryUnlocked(s.id);
@@ -984,7 +1063,7 @@ function renderDashboard(){
         card.onclick = () => location.hash = `#/subject/${s.id}`;
         card.className = 'subject-card';
         card.innerHTML = `
-            <div class="code-row"><span class="code">${s.id}</span><i class="fa-solid ${s.icon} card-icon"></i></div>
+            <div class="code-row"><span class="code">${s.code || s.id}</span><i class="fa-solid ${s.icon} card-icon"></i></div>
             <h3>${s.name}</h3>
             <p class="desc">${s.full}</p>
             <div class="levels-row">
@@ -1013,7 +1092,7 @@ function renderDashboard(){
             location.hash = `#/subject/${weak[0].subject.id}`;
             return;
         }
-        for(const s of CPA.SUBJECTS){
+        for(const s of CPA.visibleSubjects()){
             const topics = CPA.getTopics(s.id);
             const hasUnattempted = topics.some(t => CPA.getBestScore(s.id, t.id) === null);
             if(hasUnattempted){
